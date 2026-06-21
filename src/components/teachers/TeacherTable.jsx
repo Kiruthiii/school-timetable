@@ -1,7 +1,7 @@
-import { Pencil, Trash2, Mail, Phone, User } from "lucide-react";
+import { Pencil, Trash2, Mail, Phone, User, CalendarOff } from "lucide-react";
 import { Button } from "../../components/ui";
 
-function TeacherTable({ teachers, onEdit, onDelete }) {
+function TeacherTable({ teachers, onEdit, onDelete, onLeave }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -62,6 +62,14 @@ function TeacherTable({ teachers, onEdit, onDelete }) {
               </td>
               <td className="px-6 py-4 text-right">
                 <div className="flex items-center justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onLeave(teacher)}
+                    aria-label={`Mark Leave for ${teacher.teacher_name}`}
+                  >
+                    <CalendarOff className="size-4" aria-hidden="true" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
