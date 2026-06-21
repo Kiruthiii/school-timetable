@@ -6,6 +6,7 @@ import Teachers from "./pages/Teachers";
 import Classes from "./pages/Classes";
 import Subjects from "./pages/Subjects";
 import Timetable from "./pages/Timetable";
+import Mapping from "./pages/Mapping";
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Route path="/classes" element={<Classes />} />
         <Route path="/subjects" element={<Subjects />} />
         <Route path="/timetable" element={<Timetable />} />
+        <Route path="/mapping" element={<Mapping />} />
       </Routes>
     </BrowserRouter>
     
