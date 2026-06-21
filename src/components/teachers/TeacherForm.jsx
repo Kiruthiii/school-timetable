@@ -11,7 +11,7 @@ function TeacherForm({ initialData, onSubmit, onCancel }) {
   });
   const [errors, setErrors] = useState({});
 
-  /* eslint-disable react-hooks/set-state-in-effect */
+
   useEffect(() => {
     if (initialData) {
       setFormData({
