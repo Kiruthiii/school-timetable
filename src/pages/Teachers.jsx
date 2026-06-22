@@ -3,7 +3,7 @@ import AdminLayout from "../layouts/AdminLayout";
 import TeacherTable from "../components/teachers/TeacherTable";
 import TeacherModal from "../components/teachers/TeacherModal";
 import { PageHeader, SearchBar, Button, Card, CardContent } from "../components/ui";
-import { Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Plus, MoreHorizontal } from "lucide-react";
 import {
   getTeachers,
   addTeacher,
@@ -30,15 +30,7 @@ function Teachers() {
   teacher.mobile.toLowerCase().includes(searchTerm.toLowerCase())
 );
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = months[date.getMonth()];
-    const year = date.getFullYear();
-    return `${day}-${month}-${year}`;
-  };
+
 
   useEffect(() => {
     fetchTeachers();
@@ -46,6 +38,7 @@ function Teachers() {
 
   useEffect(() => {
     fetchLeaveRecords();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
   async function fetchLeaveRecords() {
