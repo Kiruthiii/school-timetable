@@ -18,8 +18,8 @@ import {
 
 import { Plus } from "lucide-react";
 
-import SubjectModal from "../components/subjects/SubjectModal";
-import SubjectTable from "../components/subjects/SubjectTable";
+import SubjectModal from "../components/Subjects/SubjectModal";
+import SubjectTable from "../components/Subjects/SubjectTable";
 
 function Subjects() {
   const [subjects, setSubjects] = useState([]);
