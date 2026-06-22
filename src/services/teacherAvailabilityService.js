@@ -1,42 +1,44 @@
 import { supabase } from "./supabase";
 
-export async function getTeacherAvailability() {
+export async function getTeacherAvailabilityByDate(date) {
   const { data, error } = await supabase
     .from("teacher_availability")
-    .select(`
-      *,
-      teachers (
-        teacher_name
-      )
-    `)
-    .order("date", { ascending: false });
+    .select("*")
+    .eq("date", date);
 
   if (error) throw error;
   return data;
 }
 
-export async function addTeacherAvailability(record) {
-  const { error } = await supabase
-    .from("teacher_availability")
-    .insert([record]);
+export async function setTeacherAvailability(teacherId, date, status, session = null) {
+  if (status === 'Available') {
+    const { error } = await supabase
+      .from("teacher_availability")
+      .delete()
+      .eq("teacher_id", teacherId)
+      .eq("date", date);
 
-  if (error) throw error;
-}
+    if (error) throw error;
+  } else {
+    // Fetch existing record to get its ID, because upsert by unique constraint sometimes requires specific setup
+    const { data: existing } = await supabase
+      .from("teacher_availability")
+      .select("id")
+      .eq("teacher_id", teacherId)
+      .eq("date", date)
+      .maybeSingle();
 
-export async function updateTeacherAvailability(id, record) {
-  const { error } = await supabase
-    .from("teacher_availability")
-    .update(record)
-    .eq("id", id);
-
-  if (error) throw error;
-}
-
-export async function deleteTeacherAvailability(id) {
-  const { error } = await supabase
-    .from("teacher_availability")
-    .delete()
-    .eq("id", id);
-
-  if (error) throw error;
+    if (existing) {
+      const { error } = await supabase
+        .from("teacher_availability")
+        .update({ status, session })
+        .eq("id", existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from("teacher_availability")
+        .insert([{ teacher_id: teacherId, date, status, session }]);
+      if (error) throw error;
+    }
+  }
 }

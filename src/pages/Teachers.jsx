@@ -11,12 +11,9 @@ import {
   deleteTeacher,
 } from "../services/teacherService";
 import {
-  getTeacherAvailability,
-  addTeacherAvailability,
-  updateTeacherAvailability,
-  deleteTeacherAvailability,
+  getTeacherAvailabilityByDate,
+  setTeacherAvailability,
 } from "../services/teacherAvailabilityService";
-import TeacherAvailabilityModal from "../components/teachers/TeacherAvailabilityModal";
 
 function Teachers() {
   const [teachers, setTeachers] = useState([]);
@@ -24,10 +21,8 @@ function Teachers() {
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedTeacher, setSelectedTeacher] = useState(null);
-  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
-  const [availabilityRecords, setAvailabilityRecords] = useState([]);
-  const [editingAvailability, setEditingAvailability] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [leaveRecords, setLeaveRecords] = useState([]);
 
   const filteredTeachers = teachers.filter((teacher) =>
   teacher.teacher_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -47,13 +42,16 @@ function Teachers() {
 
   useEffect(() => {
     fetchTeachers();
-    fetchAvailability();
   }, []);
 
-  async function fetchAvailability() {
+  useEffect(() => {
+    fetchLeaveRecords();
+  }, [selectedDate]);
+
+  async function fetchLeaveRecords() {
     try {
-      const data = await getTeacherAvailability();
-      setAvailabilityRecords(data);
+      const data = await getTeacherAvailabilityByDate(selectedDate);
+      setLeaveRecords(data);
     } catch (error) {
       console.error(error);
     }
@@ -111,46 +109,14 @@ function Teachers() {
 
   const handleClearSearch = () => setSearchTerm("");
 
-  function handleLeaveClick(teacher) {
-    setSelectedTeacher(teacher);
-    setEditingAvailability(null);
-    setShowAvailabilityModal(true);
-  }
-
-  function handleEditAvailability(record) {
-    setSelectedTeacher(record.teachers);
-    setEditingAvailability(record);
-    setShowAvailabilityModal(true);
-  }
-
-  async function handleDeleteAvailability(id) {
-    if (!window.confirm("Are you sure you want to delete this leave record?")) return;
+  async function handleSetAvailability(teacherId, status, session = null) {
     try {
-      await deleteTeacherAvailability(id);
-      await fetchAvailability();
+      await setTeacherAvailability(teacherId, selectedDate, status, session);
+      await fetchLeaveRecords();
     } catch (error) {
       console.error(error);
-      alert(error.message);
-    }
-  }
-
-  async function handleSaveAvailability(recordData) {
-    try {
-      if (editingAvailability) {
-        await updateTeacherAvailability(editingAvailability.id, recordData);
-      } else {
-        await addTeacherAvailability(recordData);
-      }
-      setEditingAvailability(null);
-      setShowAvailabilityModal(false);
-      await fetchAvailability();
-    } catch (error) {
-      console.error(error);
-      if (error?.code === '23505' || error?.message?.includes('duplicate') || error?.message?.includes('unique_teacher_date')) {
-        alert("Leave already marked for this date.");
-      } else {
-        alert(error.message);
-      }
+      alert(error.message || "An error occurred while updating availability.");
+      await fetchLeaveRecords();
     }
   }
 
@@ -177,7 +143,18 @@ function Teachers() {
                 onClear={handleClearSearch}
                 placeholder="Search teachers by name, email, or mobile..."
               />
-          
+              <div className="flex items-center gap-2">
+                <label htmlFor="date-picker" className="text-sm font-medium text-text-primary whitespace-nowrap">
+                  Select Date:
+                </label>
+                <input
+                  id="date-picker"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full sm:w-auto px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -214,94 +191,14 @@ function Teachers() {
             <CardContent className="p-0">
               <TeacherTable
                 teachers={filteredTeachers}
+                leaveRecords={leaveRecords}
                 onEdit={handleEditClick}
                 onDelete={handleDeleteTeacher}
-                onLeave={handleLeaveClick}
+                onSetAvailability={handleSetAvailability}
               />
             </CardContent>
           </Card>
         )}
-
-        <div className="mt-8">
-          <h2 className="text-xl font-semibold mb-4 text-text-primary">Leave History</h2>
-          <Card variant="default" padding="none">
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border bg-slate-50">
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">
-                        Date
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider hidden md:table-cell">
-                        Teacher
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider hidden md:table-cell">
-                        Status
-                      </th>
-                      <th className="px-6 py-4 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {availabilityRecords.length === 0 ? (
-                      <tr>
-                        <td colSpan="4" className="px-6 py-8 text-center text-text-secondary">
-                          No leave records found.
-                        </td>
-                      </tr>
-                    ) : (
-                      availabilityRecords.map((record) => (
-                        <tr key={record.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="md:hidden">
-                              <p className="font-medium text-text-primary mb-1">{formatDate(record.date)}</p>
-                              <p className="text-sm text-text-secondary">Teacher: {record.teachers?.teacher_name}</p>
-                              <p className="text-sm text-text-secondary">Status: {record.status}</p>
-                            </div>
-                            <span className="hidden md:inline font-medium text-text-primary">
-                              {formatDate(record.date)}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 hidden md:table-cell">
-                            {record.teachers?.teacher_name}
-                          </td>
-                          <td className="px-6 py-4 hidden md:table-cell">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-lg ${record.status === 'Leave' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                              {record.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleEditAvailability(record)}
-                                aria-label="Edit Leave"
-                              >
-                                <Pencil className="size-4" aria-hidden="true" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-danger hover:bg-danger-light"
-                                onClick={() => handleDeleteAvailability(record.id)}
-                                aria-label="Delete Leave"
-                              >
-                                <Trash2 className="size-4" aria-hidden="true" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
         <TeacherModal
           isOpen={showModal}
@@ -311,17 +208,6 @@ function Teachers() {
           }}
           initialData={editingTeacher}
           onSubmit={handleSaveTeacher}
-        />
-
-        <TeacherAvailabilityModal
-          isOpen={showAvailabilityModal}
-          onClose={() => {
-            setShowAvailabilityModal(false);
-            setEditingAvailability(null);
-          }}
-          initialData={editingAvailability}
-          selectedTeacher={selectedTeacher}
-          onSubmit={handleSaveAvailability}
         />
       </div>
     </AdminLayout>
