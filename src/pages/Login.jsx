@@ -1,3 +1,4 @@
+import { supabase } from "../services/supabase";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button } from "../components/ui";
 import { School, Mail, Lock, Eye, EyeOff } from "lucide-react";
@@ -13,16 +14,26 @@ function Login() {
     e.preventDefault();
     setError("");
     setLoading(true);
+    try {
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    setError(error.message);
+  } else {
+    window.location.href = "/dashboard";
+  }
+} catch (err) {
+  console.error(err);
+  setError("Something went wrong");
+} finally {
+  setLoading(false);
+}
     
     // Simulate login
-    await new Promise(resolve => setTimeout(resolve, 1500));
     
-    if (email === "admin@school.edu" && password === "password") {
-      window.location.href = "/dashboard";
-    } else {
-      setError("Invalid credentials. Use admin@school.edu / password");
-    }
-    setLoading(false);
   };
 
   return (
@@ -64,7 +75,7 @@ function Login() {
                     id="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@school.edu"
+                    placeholder="Enter your email"
                     className="w-full pl-11 pr-4 py-3 border border-border rounded-xl bg-surface text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-200"
                     required
                     autoComplete="email"
@@ -99,43 +110,17 @@ function Login() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" className="w-4 h-4 border-border rounded text-primary focus:ring-primary/20" />
-                  <span className="text-sm text-text-secondary">Remember me</span>
-                </label>
-                <a href="#" className="text-sm text-primary hover:text-primary-hover font-medium">Forgot password?</a>
-              </div>
-
               <Button type="submit" fullWidth loading={loading} className="py-3">
-                Sign In
+                Log In
               </Button>
             </form>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-surface text-text-muted">Demo Credentials</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl">
-              <div>
-                <p className="text-xs text-text-muted">Email</p>
-                <p className="text-sm font-mono text-text-primary">admin@school.edu</p>
-              </div>
-              <div>
-                <p className="text-xs text-text-muted">Password</p>
-                <p className="text-sm font-mono text-text-primary">password</p>
-              </div>
-            </div>
+          
           </CardContent>
         </Card>
 
         <p className="text-center text-text-muted text-sm mt-6">
-          &copy; 2024 School Timetable Management System. All rights reserved.
+           School Timetable Management System.
         </p>
       </div>
     </div>

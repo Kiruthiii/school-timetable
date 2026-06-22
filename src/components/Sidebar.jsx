@@ -13,15 +13,11 @@ import { useState } from "react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Teachers", href: "/teachers", icon: UserPlus},
-  { name: "Classes", href: "/classes", icon: Building2 },
+  { name: "Teachers", href: "/teachers", icon: UserPlus },
   { name: "Subjects", href: "/subjects", icon: BookOpen },
+  { name: "Classes", href: "/classes", icon: Building2 },
+  { name: "Mapping", href: "/mapping", icon: Link2 },
   { name: "Timetable", href: "/timetable", icon: Calendar },
-  {
-  name: "Mapping",
-  href: "/mapping",
-  icon: Link2,
-},
 ];
 
 function Sidebar({ isOpen, onClose }) {
