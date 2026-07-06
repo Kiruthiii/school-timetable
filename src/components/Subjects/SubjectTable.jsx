@@ -1,6 +1,17 @@
 import { BookOpen, Edit, Trash2 } from "lucide-react";
 import { Card, CardContent, Button } from "../ui";
 
+const getPriorityBadge = (priority) => {
+  switch (priority) {
+    case 1:
+      return <span className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-lg border border-blue-200">Priority 1</span>;
+    case 2:
+      return <span className="px-2.5 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-lg border border-green-200">Priority 2</span>;
+    default:
+      return null;
+  }
+};
+
 function SubjectTable({ subjects, onEdit, onDelete }) {
   return (
     <Card variant="default" padding="none">
@@ -15,6 +26,10 @@ function SubjectTable({ subjects, onEdit, onDelete }) {
 
                 <th className="hidden px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider md:table-cell">
                   Short Name
+                </th>
+
+                <th className="hidden px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider md:table-cell">
+                  Priority
                 </th>
 
                 <th className="px-6 py-4 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">
@@ -39,15 +54,22 @@ function SubjectTable({ subjects, onEdit, onDelete }) {
                         {subject.subject_name}
                       </p>
                     </div>
-                    <p className="text-sm text-slate-500 mt-2 md:hidden">
-                      {subject.short_name}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2 mt-2 md:hidden">
+                      <span className="text-sm text-slate-500">
+                        {subject.short_name}
+                      </span>
+                      {getPriorityBadge(subject.priority)}
+                    </div>
                   </td>
 
                   <td className="px-6 py-4 hidden md:table-cell">
-                    <span className="px-2 py-1 bg-slate-100 text-text-secondary text-xs font-medium rounded-lg">
+                    <span className="px-2 py-1 bg-slate-100 text-text-secondary text-xs font-medium rounded-lg border border-slate-200">
                       {subject.short_name}
                     </span>
+                  </td>
+
+                  <td className="px-6 py-4 hidden md:table-cell">
+                    {getPriorityBadge(subject.priority)}
                   </td>
 
                   <td className="px-6 py-4 text-right">
