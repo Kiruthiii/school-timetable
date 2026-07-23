@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Card, CardContent } from "../ui";
 import { Loader2 } from "lucide-react";
 import TimetableRow from "./TimetableRow";

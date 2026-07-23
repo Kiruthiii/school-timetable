@@ -3,7 +3,7 @@ import { Button } from "../../components/ui";
 
 function FixedSlotForm({ initialData, onSubmit, onCancel, classes = [] }) {
   const [formData, setFormData] = useState({
-    class_id: "",
+    class_ids: [],
     day_of_week: 1,
     period: 1,
     type: "Assembly",
@@ -12,26 +12,20 @@ function FixedSlotForm({ initialData, onSubmit, onCancel, classes = [] }) {
   useEffect(() => {
     if (initialData) {
       setFormData({
-        class_id: initialData.class_id || "",
+        class_ids: initialData.class_id ? [initialData.class_id] : [],
         day_of_week: initialData.day_of_week || 1,
         period: initialData.period || 1,
         type: initialData.type || "Assembly",
       });
     } else {
       setFormData({
-        class_id: classes.length > 0 ? classes[0].id : "",
+        class_ids: [],
         day_of_week: 1,
         period: 1,
         type: "Assembly",
       });
     }
   }, [initialData, classes]);
-
-  useEffect(() => {
-    if (formData.type === "Slip Test" && formData.period !== 8) {
-      setFormData((prev) => ({ ...prev, period: 8 }));
-    }
-  }, [formData.type]);
 
   function handleChange(e) {
     const value =
@@ -44,34 +38,35 @@ function FixedSlotForm({ initialData, onSubmit, onCancel, classes = [] }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (formData.class_ids.length === 0) {
+      alert("Please select at least one class.");
+      return;
+    }
     await onSubmit(formData);
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label className="block mb-2 font-medium" htmlFor="class_id">
-          Class
+        <label className="block mb-2 font-medium" htmlFor="type">
+          Type *
         </label>
         <select
-          id="class_id"
-          name="class_id"
-          value={formData.class_id}
+          id="type"
+          name="type"
+          value={formData.type}
           onChange={handleChange}
           className="w-full border rounded-xl px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-primary/20"
           required
         >
-          {classes.map((cls) => (
-            <option key={cls.id} value={cls.id}>
-              {cls.class_name}
-            </option>
-          ))}
+          <option value="Assembly">Assembly</option>
+          <option value="ECA">ECA</option>
         </select>
       </div>
 
       <div>
         <label className="block mb-2 font-medium" htmlFor="day_of_week">
-          Day
+          Day *
         </label>
         <select
           id="day_of_week"
@@ -92,7 +87,7 @@ function FixedSlotForm({ initialData, onSubmit, onCancel, classes = [] }) {
 
       <div>
         <label className="block mb-2 font-medium" htmlFor="period">
-          Period
+          Period *
         </label>
         <select
           id="period"
@@ -106,35 +101,63 @@ function FixedSlotForm({ initialData, onSubmit, onCancel, classes = [] }) {
             <option 
               key={p} 
               value={p}
-              disabled={formData.type === "Slip Test" && p !== 8}
             >
               Period {p}
             </option>
           ))}
         </select>
-        {formData.type === "Slip Test" && (
-          <p className="mt-1 text-sm text-amber-600">
-            Slip Test can only be scheduled during the last period.
-          </p>
-        )}
       </div>
 
       <div>
-        <label className="block mb-2 font-medium" htmlFor="type">
-          Reserved Period
-        </label>
-        <select
-          id="type"
-          name="type"
-          value={formData.type}
-          onChange={handleChange}
-          className="w-full border rounded-xl px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-primary/20"
-          required
-        >
-          <option value="Assembly">Assembly</option>
-          <option value="ECA">ECA</option>
-          <option value="Slip Test">Slip Test</option>
-        </select>
+        <label className="block mb-2 font-medium">Classes</label>
+        <div className="flex items-center gap-2 mb-3">
+          <input
+            type="checkbox"
+            id="selectAll"
+            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+            checked={formData.class_ids.length === classes.length && classes.length > 0}
+            onChange={(e) => {
+              if (e.target.checked) {
+                setFormData({ ...formData, class_ids: classes.map((c) => c.id) });
+              } else {
+                setFormData({ ...formData, class_ids: [] });
+              }
+            }}
+            disabled={!!initialData}
+          />
+          <label htmlFor="selectAll" className="font-medium text-sm">
+            Select All Classes
+          </label>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 border rounded-xl p-4 bg-white/50 max-h-[200px] overflow-y-auto">
+          {classes.map((cls) => (
+            <div key={cls.id} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id={`class-${cls.id}`}
+                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                checked={formData.class_ids.includes(cls.id)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setFormData({
+                      ...formData,
+                      class_ids: [...formData.class_ids, cls.id],
+                    });
+                  } else {
+                    setFormData({
+                      ...formData,
+                      class_ids: formData.class_ids.filter((id) => id !== cls.id),
+                    });
+                  }
+                }}
+                disabled={!!initialData}
+              />
+              <label htmlFor={`class-${cls.id}`} className="text-sm">
+                {cls.class_name}
+              </label>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-4">
@@ -147,7 +170,7 @@ function FixedSlotForm({ initialData, onSubmit, onCancel, classes = [] }) {
           Cancel
         </Button>
         <Button type="submit" className="w-full sm:w-auto">
-          {initialData ? "Update Reserved Period" : "Reserve Period"}
+          Save
         </Button>
       </div>
     </form>

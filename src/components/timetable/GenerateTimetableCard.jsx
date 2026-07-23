@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Card, CardContent, Button } from "../ui";
 import { Calendar, Play, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { generateTimetable } from "../../services/timetableService";
 
 export default function GenerateTimetableCard() {
   const [date, setDate] = useState("");
+  const [slipTestPeriods, setSlipTestPeriods] = useState(0);
+  const [slipTestAllowedPeriod, setSlipTestAllowedPeriod] = useState(8);
   const [isLoading, setIsLoading] = useState(false);
   const [report, setReport] = useState(null);
 
@@ -13,7 +15,7 @@ export default function GenerateTimetableCard() {
     setIsLoading(true);
     setReport(null);
     try {
-      const result = await generateTimetable(date);
+      const result = await generateTimetable(date, slipTestPeriods, slipTestAllowedPeriod);
       setReport(result);
     } catch (error) {
       setReport({
@@ -39,17 +41,47 @@ export default function GenerateTimetableCard() {
             </div>
           </div>
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              disabled={isLoading}
-              className="px-3 py-2 border border-border rounded-xl bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
+            <div className="flex flex-col gap-1">
+              <label htmlFor="slip-tests" className="text-xs text-text-secondary">Slip Tests/Week</label>
+              <input
+                id="slip-tests"
+                type="number"
+                min="0"
+                max="5"
+                value={slipTestPeriods}
+                onChange={(e) => setSlipTestPeriods(Number(e.target.value))}
+                disabled={isLoading}
+                className="w-24 px-3 py-2 border border-border rounded-xl bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="slip-test-period" className="text-xs text-text-secondary">Allowed Period</label>
+              <input
+                id="slip-test-period"
+                type="number"
+                min="1"
+                max="8"
+                value={slipTestAllowedPeriod}
+                onChange={(e) => setSlipTestAllowedPeriod(Number(e.target.value))}
+                disabled={isLoading}
+                className="w-24 px-3 py-2 border border-border rounded-xl bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="generate-date" className="text-xs text-text-secondary">Date</label>
+              <input
+                id="generate-date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                disabled={isLoading}
+                className="px-3 py-2 border border-border rounded-xl bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
             <Button 
               onClick={handleGenerate} 
               disabled={isLoading || !date}
-              className="min-w-[120px]"
+              className="min-w-[120px] self-end mb-[2px]"
             >
               {isLoading ? (
                 <>

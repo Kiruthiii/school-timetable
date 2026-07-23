@@ -80,11 +80,47 @@ function FixedSlots() {
   async function handleSubmit(formData) {
     try {
       if (editingSlot) {
-        await updateFixedSlot(editingSlot.id, formData);
+        if (formData.class_ids.length !== 1) {
+          toast.error("Please select exactly one class when editing.");
+          return;
+        }
+        const updateData = {
+          class_id: formData.class_ids[0],
+          day_of_week: formData.day_of_week,
+          period: formData.period,
+          type: formData.type
+        };
+        await updateFixedSlot(editingSlot.id, updateData);
         toast.success("Reserved period updated successfully.");
       } else {
-        await addFixedSlot(formData);
-        toast.success("Reserved period created successfully.");
+        if (formData.class_ids.length === 0) {
+          toast.error("Please select at least one class.");
+          return;
+        }
+        
+        let createdCount = 0;
+        let skippedCount = 0;
+
+        for (const classId of formData.class_ids) {
+          const createData = {
+            class_id: classId,
+            day_of_week: formData.day_of_week,
+            period: formData.period,
+            type: formData.type
+          };
+          try {
+            await addFixedSlot(createData);
+            createdCount++;
+          } catch {
+            skippedCount++;
+          }
+        }
+
+        if (createdCount > 0) {
+          toast.success(`Created ${createdCount} reserved periods.${skippedCount > 0 ? ` Skipped ${skippedCount} duplicate records.` : ""}`);
+        } else if (skippedCount > 0) {
+          toast.error(`Skipped ${skippedCount} duplicate records. No new periods created.`);
+        }
       }
 
       await fetchData();
@@ -120,7 +156,7 @@ function FixedSlots() {
         <div className="space-y-6">
           <PageHeader
             title="Reserved Periods"
-            description="Configure reserved periods such as Assembly, ECA and Slip Test."
+            description="Configure reserved periods such as Assembly and ECA."
           />
 
           <Card variant="default" padding="md">
@@ -141,7 +177,7 @@ function FixedSlots() {
       <div className="space-y-6">
         <PageHeader
           title="Reserved Periods"
-          description="Configure reserved periods such as Assembly, ECA and Slip Test."
+          description="Configure reserved periods such as Assembly and ECA."
           action={
             <Button
               onClick={() => {
@@ -187,7 +223,6 @@ function FixedSlots() {
             <option value="">All Reserved Slots</option>
             <option value="Assembly">Assembly</option>
             <option value="ECA">ECA</option>
-            <option value="Slip Test">Slip Test</option>
           </select>
         </div>
 

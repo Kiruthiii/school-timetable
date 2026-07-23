@@ -1,3 +1,4 @@
+/* global PT_SUBJECT_ID */
 import { supabase } from "./supabase";
 export const getMappings = async () => {
   const { data, error } = await supabase
@@ -241,7 +242,7 @@ export const validateGenerationDate = (date) => {
   return { isValid: true };
 };
 
-export const generateTimetable = async (date) => {
+export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllowedPeriod = 8) => {
   const dateValidation = validateGenerationDate(date);
   
   if (!dateValidation.isValid) {
@@ -262,6 +263,7 @@ export const generateTimetable = async (date) => {
   }
 
   const { classes, mappings, progress, availability, fixedSlots } = await loadData(date);
+  const weekSlipTests = await getSlipTestsForWeek(weekStartDate);
 
   const remainingPeriods = calculateRemainingPeriods(mappings, progress);
 
@@ -275,6 +277,9 @@ export const generateTimetable = async (date) => {
 
     const todaySubjects = [];
     const classEntries = [];
+
+    const classSlipTestsCount = weekSlipTests.filter(st => st.class_id === cls.id).length;
+    const assignSlipTestToday = classSlipTestsCount < slipTestPeriods;
 
     for (let period = 1; period <= 8; period++) {
       const currentDay = new Date(date).getDay();
@@ -298,6 +303,32 @@ export const generateTimetable = async (date) => {
 
   continue;
 }
+
+      if (period === slipTestAllowedPeriod && assignSlipTestToday) {
+        const classTeacherId = cls.class_teacher_id;
+        
+        const isClassTeacherAvailable = 
+          classTeacherId &&
+          isTeacherAvailable(classTeacherId, period, availability) &&
+          !teacherSchedule[period]?.[classTeacherId];
+
+        if (isClassTeacherAvailable) {
+          if (!teacherSchedule[period]) {
+            teacherSchedule[period] = {};
+          }
+          teacherSchedule[period][classTeacherId] = true;
+          
+          classEntries.push({
+            date,
+            class_id: cls.id,
+            period,
+            subject_id: null,
+            teacher_id: classTeacherId,
+            slot_type: "Slip Test",
+          });
+          continue;
+        }
+      }
 
       const availableSubjects = getAvailableSubjects(
         classRemainingPeriods,
@@ -331,7 +362,8 @@ export const generateTimetable = async (date) => {
     entries.push(...classEntries);
   }
 
-  const generatedCount = await saveGeneratedTimetable(entries);
+  await saveTimetable(entries);
+  const generatedCount = entries.length;
   const { updatedSubjects } = await updateWeeklyProgress(entries, weekStartDate);
 
   return {
@@ -544,4 +576,20 @@ if (error) throw error;
 
 return data;
 
+};
+
+export const getSlipTestsForWeek = async (weekStartDate) => {
+  const weekEndDate = new Date(weekStartDate);
+  weekEndDate.setDate(weekEndDate.getDate() + 6);
+  const weekEndDateStr = weekEndDate.toISOString().split("T")[0];
+
+  const { data, error } = await supabase
+    .from("timetable")
+    .select("class_id")
+    .gte("date", weekStartDate)
+    .lte("date", weekEndDateStr)
+    .eq("slot_type", "Slip Test");
+
+  if (error) throw error;
+  return data;
 };

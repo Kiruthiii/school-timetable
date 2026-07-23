@@ -49,22 +49,47 @@ async function handleSubmit(formData) {
   try {
     if (editingMapping) {
       await updateMapping(editingMapping.id, formData);
+      await fetchMappings();
+      setShowModal(false);
+      setEditingMapping(null);
     } else {
-      await addMapping(formData);
+      let successCount = 0;
+      let duplicateCount = 0;
+      
+      // formData will be an array of mapping objects when creating
+      for (const mapping of formData) {
+        const isDuplicate = mappings.some(
+          (m) => String(m.class_id) === String(mapping.class_id) && 
+                 String(m.subject_id) === String(mapping.subject_id) && 
+                 String(m.teacher_id) === String(mapping.teacher_id)
+        );
+
+        if (isDuplicate) {
+          duplicateCount++;
+          continue;
+        }
+
+        try {
+          await addMapping(mapping);
+          successCount++;
+        } catch (addError) {
+          if (addError?.code === '23505' || addError?.message?.includes('duplicate')) {
+            duplicateCount++;
+          } else {
+            throw addError;
+          }
+        }
+      }
+
+      await fetchMappings();
+      setShowModal(false);
+      setEditingMapping(null);
+      
+      alert(`Successfully created ${successCount} mappings.\nSkipped ${duplicateCount} duplicate mappings.`);
     }
-
-    await fetchMappings();
-
-    setShowModal(false);
-    setEditingMapping(null);
-
   } catch (error) {
     console.error(error);
-    if (error?.code === '23505' || error?.message?.includes('duplicate')) {
-      alert("Mapping already exists");
-    } else {
-      alert(error.message);
-    }
+    alert(error.message);
   }
 }
 

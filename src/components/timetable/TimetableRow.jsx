@@ -1,11 +1,11 @@
-import React from 'react';
+
 
 const TimetableRow = ({ period, entry, isMobile = false }) => {
   const isFreePeriod = !entry || (!entry.subjects && !entry.slot_type);
   const isReserved = !!entry?.slot_type;
 
-  const getReservedBadge = (type) => {
-    switch (type) {
+  const getReservedBadge = (slot_type) => {
+    switch (slot_type) {
       case 'Assembly':
         return <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-100 text-blue-800 font-medium text-sm">Assembly</span>;
       case 'ECA':
@@ -13,7 +13,7 @@ const TimetableRow = ({ period, entry, isMobile = false }) => {
       case 'Slip Test':
         return <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-orange-100 text-orange-800 font-medium text-sm">Slip Test</span>;
       default:
-        return <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-800 font-medium text-sm">{type}</span>;
+        return <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-800 font-medium text-sm">{slot_type}</span>;
     }
   };
 

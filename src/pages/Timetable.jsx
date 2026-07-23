@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "../layouts/AdminLayout";
 import { PageHeader, Card, CardContent, Button } from "../components/ui";
-import { Download, Upload, Filter, Loader2 } from "lucide-react";
+import { Download, Upload, Loader2 } from "lucide-react";
 import GenerateTimetableCard from "../components/timetable/GenerateTimetableCard";
 import TimetableViewer from "../components/timetable/TimetableViewer";
 import { getTimetableByDateAndClass, getClasses } from "../services/timetableService";
@@ -28,24 +28,24 @@ function Timetable() {
     fetchClasses();
   }, []);
 
-  useEffect(() => {
-    const fetchTimetable = async () => {
-      if (!selectedClass || !selectedDate) return;
-      
-      setIsLoading(true);
-      try {
-        const data = await getTimetableByDateAndClass(selectedDate, selectedClass);
-        setTimetable(data || []);
-      } catch (error) {
-        console.error("Failed to fetch timetable", error);
-        setTimetable([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const handleLoadTimetable = async () => {
+    if (!selectedClass || !selectedDate) return;
     
-    fetchTimetable();
-  }, [selectedClass, selectedDate]);
+    console.log("Loading timetable with selectedDate:", selectedDate, "and selectedClass:", selectedClass);
+    setIsLoading(true);
+    try {
+      const parsedClassId = Number(selectedClass); // Ensure classId is a number
+      console.log("Parsed class ID:", parsedClassId);
+      const data = await getTimetableByDateAndClass(selectedDate, parsedClassId);
+      console.log("Supabase response:", data);
+      setTimetable(data || []);
+    } catch (error) {
+      console.error("Failed to fetch timetable", error);
+      setTimetable([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <AdminLayout>
@@ -69,39 +69,48 @@ function Timetable() {
 
         <GenerateTimetableCard />
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full sm:w-auto">
-            <div className="flex items-center gap-4 w-full sm:w-auto">
-              <label htmlFor="date-select" className="text-sm font-medium text-text-secondary whitespace-nowrap">Date:</label>
-              <input
-                type="date"
-                id="date-select"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full sm:w-auto px-4 py-2 border border-border rounded-xl bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="font-semibold text-text-primary mb-4">View Timetable</h3>
+            <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+              <div className="flex flex-col gap-2 w-full sm:w-auto">
+                <label htmlFor="date-select" className="text-sm font-medium text-text-secondary whitespace-nowrap">Date:</label>
+                <input
+                  type="date"
+                  id="date-select"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full sm:w-auto px-4 py-2 border border-border rounded-xl bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              
+              <div className="flex flex-col gap-2 w-full sm:w-auto">
+                <label htmlFor="class-select" className="text-sm font-medium text-text-secondary whitespace-nowrap">Class:</label>
+                <select
+                  id="class-select"
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="w-full sm:w-auto px-4 py-2 border border-border rounded-xl bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  {classes.map((cls) => (
+                    <option key={cls.id} value={cls.id}>{cls.class_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <Button onClick={handleLoadTimetable} disabled={isLoading || !selectedClass || !selectedDate} className="w-full sm:w-auto mt-4 sm:mt-0">
+                {isLoading ? (
+                  <>
+                    <Loader2 className="size-4 mr-2 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  "Load Timetable"
+                )}
+              </Button>
             </div>
-            
-            <div className="flex items-center gap-4 w-full sm:w-auto">
-              <label htmlFor="class-select" className="text-sm font-medium text-text-secondary whitespace-nowrap">Class:</label>
-              <select
-                id="class-select"
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                className="w-full sm:w-auto px-4 py-2 border border-border rounded-xl bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                {classes.map((cls) => (
-                  <option key={cls.id} value={cls.id}>{cls.class_name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          
-          <Button variant="outline" className="w-full sm:w-auto">
-            <Filter className="size-4" aria-hidden="true" />
-            Filters
-          </Button>
-        </div>
+          </CardContent>
+        </Card>
 
         <TimetableViewer timetable={timetable} isLoading={isLoading} />
       </div>

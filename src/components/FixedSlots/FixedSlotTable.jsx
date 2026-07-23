@@ -7,8 +7,6 @@ const getBadgeStyles = (type) => {
       return "bg-blue-100 text-blue-700 border-blue-200";
     case "ECA":
       return "bg-green-100 text-green-700 border-green-200";
-    case "Slip Test":
-      return "bg-orange-100 text-orange-700 border-orange-200";
     default:
       return "bg-slate-100 text-slate-700 border-slate-200";
   }
@@ -112,7 +110,7 @@ function FixedSlotTable({ fixedSlots, onEdit, onDelete, onAdd }) {
                     <div className="flex flex-col items-center justify-center gap-3">
                       <div className="text-4xl mb-2">📅</div>
                       <p className="text-lg font-medium text-text-primary">No reserved periods configured yet.</p>
-                      <p className="text-text-muted max-w-md text-center">Reserve periods like Assembly, ECA and Slip Test to prevent subjects from being scheduled in those slots.</p>
+                      <p className="text-text-muted max-w-md text-center">Reserve periods like Assembly and ECA to prevent subjects from being scheduled in those slots.</p>
                       <div className="mt-2">
                         <Button onClick={onAdd} variant="primary">
                           + Reserve Period
