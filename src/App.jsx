@@ -8,12 +8,17 @@ import Classes from "./pages/Classes";
 import Subjects from "./pages/Subjects";
 import Timetable from "./pages/Timetable";
 import Mapping from "./pages/Mapping";
+import FixedSlots from "./pages/FixedSlots";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
+import { Toaster } from "react-hot-toast";
+
 function App() {
   return (
-    <BrowserRouter>
+    <>
+      <Toaster position="top-right" />
+      <BrowserRouter>
       <Routes>
         <Route path="/" element={<Login />} />
 
@@ -70,8 +75,18 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/fixed-slots"
+          element={
+            <ProtectedRoute>
+              <FixedSlots />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
-    </BrowserRouter>
+      </BrowserRouter>
+    </>
   );
 }
 

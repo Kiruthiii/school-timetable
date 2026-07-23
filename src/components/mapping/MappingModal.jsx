@@ -20,7 +20,7 @@ function MappingModal({
           ? "Update class subject teacher mapping"
           : "Create a new mapping"
       }
-      size="md"
+      size="lg"
     >
       <MappingForm
         initialData={initialData}

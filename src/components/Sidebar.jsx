@@ -7,7 +7,8 @@ import {
   Calendar,
   Menu,
   X,
-  School,Link2 
+  School,Link2,
+  CalendarCheck
 } from "lucide-react";
 import { useState } from "react";
 
@@ -18,6 +19,7 @@ const navigation = [
   { name: "Classes", href: "/classes", icon: Building2 },
   { name: "Mapping", href: "/mapping", icon: Link2 },
   { name: "Timetable", href: "/timetable", icon: Calendar },
+  { name: "Fixed Slots", href: "/fixed-slots", icon: CalendarCheck },
 ];
 
 function Sidebar({ isOpen, onClose }) {
