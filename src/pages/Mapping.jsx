@@ -8,9 +8,10 @@ import {
 } from "../services/mappingService";
 import AdminLayout from "../layouts/AdminLayout";
 import { PageHeader, Card, CardContent, SearchBar, ConfirmModal } from "../components/ui";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, X, LayoutGrid, Table as TableIcon, Network } from "lucide-react";
 import { Button } from "../components/ui";
 import MappingModal from "../components/mapping/MappingModal";
+import N8nMappingCanvas from "../components/mapping/N8nMappingCanvas";
 
 import { getClasses } from "../services/classService";
 import { getSubjects } from "../services/subjectService";
@@ -25,6 +26,7 @@ function Mapping() {
   const [mappingToDelete, setMappingToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState("canvas"); // 'canvas' | 'table'
 
 const [classes, setClasses] = useState([]);
 const [subjects, setSubjects] = useState([]);
@@ -192,131 +194,181 @@ async function fetchDropdownData() {
     <AdminLayout>
       <div className="space-y-6">
         <PageHeader
-  title="Mapping"
-  description="Manage class subject teacher mappings"
-  action={
-    <Button
-      onClick={() => {
-        setEditingMapping(null);
-        setShowModal(true);
-      }}
-    >
-      <Plus className="size-4" />
-      Add Mapping
-    </Button>
-  }
-/>
-        <Card variant="default" padding="md">
-          <CardContent>
-            {mappings.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-slate-500 mb-4">No mappings found</p>
-                <Button
-                  onClick={() => {
-                    setEditingMapping(null);
-                    setShowModal(true);
-                  }}
+          title="Mapping"
+          description="Manage class-subject-teacher mappings via visual workflow nodes or table list"
+          action={
+            <div className="flex items-center gap-3">
+              {/* View Switcher Controls */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("canvas")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    viewMode === "canvas"
+                      ? "bg-slate-900 text-white shadow-md"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                  }`}
                 >
-                  <Plus className="size-4 mr-2" />
-                  Add Mapping
-                </Button>
+                  <Network className="size-4 text-indigo-400" />
+                  <span>n8n Canvas Node View</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewMode("table")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    viewMode === "table"
+                      ? "bg-white text-slate-900 shadow-md"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                  }`}
+                >
+                  <TableIcon className="size-4 text-slate-500" />
+                  <span>Table View</span>
+                </button>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex flex-col gap-4 mb-4">
-                  <div className="flex flex-col md:flex-row gap-4 items-end">
-                    <div className="w-full md:w-1/4">
-                      <SearchBar
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onClear={() => setSearchQuery("")}
-                        placeholder="Search mappings..."
-                      />
-                    </div>
-                    
-                    <div className="w-full md:w-1/6 flex flex-col gap-1">
-                      <label className="text-xs text-slate-500 font-medium">Class</label>
-                      <select
-                        value={selectedClassId}
-                        onChange={(e) => setSelectedClassId(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
-                      >
-                        <option value="all">All Classes</option>
-                        {classes.map(c => (
-                          <option key={c.id} value={c.id}>{c.class_name}</option>
-                        ))}
-                      </select>
-                    </div>
 
-                    <div className="w-full md:w-1/6 flex flex-col gap-1">
-                      <label className="text-xs text-slate-500 font-medium">Teacher</label>
-                      <select
-                        value={selectedTeacherId}
-                        onChange={(e) => setSelectedTeacherId(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
-                      >
-                        <option value="all">All Teachers</option>
-                        {teachers.map(t => (
-                          <option key={t.id} value={t.id}>{t.teacher_name}</option>
-                        ))}
-                      </select>
-                    </div>
+              <Button
+                onClick={() => {
+                  setEditingMapping(null);
+                  setShowModal(true);
+                }}
+              >
+                <Plus className="size-4 mr-1" />
+                Add Mapping Node
+              </Button>
+            </div>
+          }
+        />
 
-                    <div className="w-full md:w-1/6 flex flex-col gap-1">
-                      <label className="text-xs text-slate-500 font-medium">Subject</label>
-                      <select
-                        value={selectedSubjectId}
-                        onChange={(e) => setSelectedSubjectId(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
-                      >
-                        <option value="all">All Subjects</option>
-                        {subjects.map(s => (
-                          <option key={s.id} value={s.id}>{s.subject_name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    <div className="w-full md:w-1/6 flex flex-col gap-1">
-                      <label className="text-xs text-slate-500 font-medium">Priority</label>
-                      <select
-                        value={selectedPriority}
-                        onChange={(e) => setSelectedPriority(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
-                      >
-                        <option value="all">All Priorities</option>
-                        <option value="1">1 (High)</option>
-                        <option value="2">2 (Medium)</option>
-                        <option value="3">3 (Low)</option>
-                        <option value="4">4 (Lowest)</option>
-                      </select>
-                    </div>
-                    
-                    <Button 
-                      variant="outline" 
-                      className="w-full md:w-auto h-[38px] px-4"
-                      onClick={clearFilters}
-                    >
-                      <X className="size-4 mr-2" />
-                      Clear Filters
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center justify-between text-sm text-slate-500 border-t border-slate-100 pt-3">
-                    <span>Showing {filteredMappings.length} of {mappings.length} mappings</span>
-                  </div>
+        {viewMode === "canvas" ? (
+          <N8nMappingCanvas
+            mappings={filteredMappings}
+            classes={classes}
+            subjects={subjects}
+            teachers={teachers}
+            onEdit={(mapping) => {
+              setEditingMapping(mapping);
+              setShowModal(true);
+            }}
+            onDelete={handleDelete}
+            onAdd={() => {
+              setEditingMapping(null);
+              setShowModal(true);
+            }}
+          />
+        ) : (
+          <Card variant="default" padding="md">
+            <CardContent>
+              {mappings.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-500 mb-4">No mappings found</p>
+                  <Button
+                    onClick={() => {
+                      setEditingMapping(null);
+                      setShowModal(true);
+                    }}
+                  >
+                    <Plus className="size-4 mr-2" />
+                    Add Mapping
+                  </Button>
                 </div>
-                <MappingTable
-                  mappings={filteredMappings}
-                  onEdit={(mapping) => {
-                    setEditingMapping(mapping);
-                    setShowModal(true);
-                  }}
-                  onDelete={handleDelete}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-4 mb-4">
+                    <div className="flex flex-col md:flex-row gap-4 items-end">
+                      <div className="w-full md:w-1/4">
+                        <SearchBar
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          onClear={() => setSearchQuery("")}
+                          placeholder="Search mappings..."
+                        />
+                      </div>
+                      
+                      <div className="w-full md:w-1/6 flex flex-col gap-1">
+                        <label className="text-xs text-slate-500 font-medium">Class</label>
+                        <select
+                          value={selectedClassId}
+                          onChange={(e) => setSelectedClassId(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                        >
+                          <option value="all">All Classes</option>
+                          {classes.map(c => (
+                            <option key={c.id} value={c.id}>{c.class_name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="w-full md:w-1/6 flex flex-col gap-1">
+                        <label className="text-xs text-slate-500 font-medium">Teacher</label>
+                        <select
+                          value={selectedTeacherId}
+                          onChange={(e) => setSelectedTeacherId(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                        >
+                          <option value="all">All Teachers</option>
+                          {teachers.map(t => (
+                            <option key={t.id} value={t.id}>{t.teacher_name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="w-full md:w-1/6 flex flex-col gap-1">
+                        <label className="text-xs text-slate-500 font-medium">Subject</label>
+                        <select
+                          value={selectedSubjectId}
+                          onChange={(e) => setSelectedSubjectId(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                        >
+                          <option value="all">All Subjects</option>
+                          {subjects.map(s => (
+                            <option key={s.id} value={s.id}>{s.subject_name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div className="w-full md:w-1/6 flex flex-col gap-1">
+                        <label className="text-xs text-slate-500 font-medium">Priority</label>
+                        <select
+                          value={selectedPriority}
+                          onChange={(e) => setSelectedPriority(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                        >
+                          <option value="all">All Priorities</option>
+                          <option value="1">1 (High)</option>
+                          <option value="2">2 (Medium)</option>
+                          <option value="3">3 (Low)</option>
+                          <option value="4">4 (Lowest)</option>
+                        </select>
+                      </div>
+                      
+                      <Button 
+                        variant="outline" 
+                        className="w-full md:w-auto h-[38px] px-4"
+                        onClick={clearFilters}
+                      >
+                        <X className="size-4 mr-2" />
+                        Clear Filters
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm text-slate-500 border-t border-slate-100 pt-3">
+                      <span>Showing {filteredMappings.length} of {mappings.length} mappings</span>
+                    </div>
+                  </div>
+                  <MappingTable
+                    mappings={filteredMappings}
+                    onEdit={(mapping) => {
+                      setEditingMapping(mapping);
+                      setShowModal(true);
+                    }}
+                    onDelete={handleDelete}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
       <MappingModal
         isOpen={showModal}
