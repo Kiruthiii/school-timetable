@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import AdminLayout from "../layouts/AdminLayout";
 import TeacherTable from "../components/teachers/TeacherTable";
 import TeacherModal from "../components/teachers/TeacherModal";
-import { PageHeader, SearchBar, Button, Card, CardContent } from "../components/ui";
+import { PageHeader, SearchBar, Button, Card, CardContent, ConfirmModal } from "../components/ui";
 import { Plus, MoreHorizontal } from "lucide-react";
 import {
   getTeachers,
@@ -20,6 +21,8 @@ function Teachers() {
   const [loading, setLoading] = useState(true);
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [teacherToDelete, setTeacherToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [leaveRecords, setLeaveRecords] = useState([]);
@@ -29,8 +32,6 @@ function Teachers() {
   teacher.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
   teacher.mobile.toLowerCase().includes(searchTerm.toLowerCase())
 );
-
-
 
   useEffect(() => {
     fetchTeachers();
@@ -56,7 +57,7 @@ function Teachers() {
       setTeachers(data);
     } catch (error) {
       console.error(error);
-      alert(error.message);
+      toast.error(error.message || "Failed to fetch teachers");
     } finally {
       setLoading(false);
     }
@@ -71,8 +72,10 @@ function Teachers() {
     try {
       if (editingTeacher) {
         await updateTeacher(editingTeacher.id, newTeacher);
+        toast.success("Teacher updated successfully");
       } else {
         await addTeacher(newTeacher);
+        toast.success("Teacher added successfully");
       }
 
       setEditingTeacher(null);
@@ -80,23 +83,27 @@ function Teachers() {
       await fetchTeachers();
     } catch (error) {
       console.error(error);
-      alert(error.message);
+      toast.error(error.message || "Failed to save teacher");
     }
   }
 
-  async function handleDeleteTeacher(id) {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this teacher?"
-    );
+  function handleDeleteTeacher(id) {
+    setTeacherToDelete(id);
+  }
 
-    if (!confirmDelete) return;
-
+  async function confirmDeleteTeacher() {
+    if (!teacherToDelete) return;
+    setIsDeleting(true);
     try {
-      await deleteTeacher(id);
-      fetchTeachers();
+      await deleteTeacher(teacherToDelete);
+      toast.success("Teacher deleted successfully");
+      await fetchTeachers();
     } catch (error) {
       console.error(error);
-      alert(error.message);
+      toast.error(error.message || "Failed to delete teacher");
+    } finally {
+      setIsDeleting(false);
+      setTeacherToDelete(null);
     }
   }
 
@@ -105,10 +112,11 @@ function Teachers() {
   async function handleSetAvailability(teacherId, status, session = null) {
     try {
       await setTeacherAvailability(teacherId, selectedDate, status, session);
+      toast.success("Teacher availability updated");
       await fetchLeaveRecords();
     } catch (error) {
       console.error(error);
-      alert(error.message || "An error occurred while updating availability.");
+      toast.error(error.message || "An error occurred while updating availability.");
       await fetchLeaveRecords();
     }
   }
@@ -201,6 +209,16 @@ function Teachers() {
           }}
           initialData={editingTeacher}
           onSubmit={handleSaveTeacher}
+        />
+
+        <ConfirmModal
+          isOpen={!!teacherToDelete}
+          onClose={() => setTeacherToDelete(null)}
+          onConfirm={confirmDeleteTeacher}
+          title="Delete Teacher?"
+          message="Are you sure you want to delete this teacher? All associated availability records and class mappings for this teacher will also be removed."
+          confirmText="Delete Teacher"
+          loading={isDeleting}
         />
       </div>
     </AdminLayout>

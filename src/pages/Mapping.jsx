@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import {
   getMappings,
   addMapping,
@@ -6,8 +7,8 @@ import {
   deleteMapping,
 } from "../services/mappingService";
 import AdminLayout from "../layouts/AdminLayout";
-import { PageHeader, Card, CardContent, SearchBar } from "../components/ui";
-import { Plus, Loader2, X } from "lucide-react";
+import { PageHeader, Card, CardContent, SearchBar, ConfirmModal } from "../components/ui";
+import { Plus, Loader2 } from "lucide-react";
 import { Button } from "../components/ui";
 import MappingModal from "../components/mapping/MappingModal";
 
@@ -21,6 +22,8 @@ function Mapping() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingMapping, setEditingMapping] = useState(null);
+  const [mappingToDelete, setMappingToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
 const [classes, setClasses] = useState([]);
@@ -50,63 +53,75 @@ async function fetchDropdownData() {
   }
 }
 
-async function handleSubmit(formData) {
-  try {
-    if (editingMapping) {
-      await updateMapping(editingMapping.id, formData);
-      await fetchMappings();
-      setShowModal(false);
-      setEditingMapping(null);
-    } else {
-      let successCount = 0;
-      let duplicateCount = 0;
-      
-      // formData will be an array of mapping objects when creating
-      for (const mapping of formData) {
-        const isDuplicate = mappings.some(
-          (m) => String(m.class_id) === String(mapping.class_id) && 
-                 String(m.subject_id) === String(mapping.subject_id) && 
-                 String(m.teacher_id) === String(mapping.teacher_id)
-        );
+  async function handleSubmit(formData) {
+    try {
+      if (editingMapping) {
+        await updateMapping(editingMapping.id, {
+          class_id: formData.class_id,
+          subject_id: formData.subject_id,
+          teacher_id: formData.teacher_id,
+          weekly_periods: formData.weekly_periods,
+        });
 
-        if (isDuplicate) {
-          duplicateCount++;
-          continue;
-        }
+        await fetchMappings();
+        setShowModal(false);
+        setEditingMapping(null);
+        toast.success("Mapping updated successfully");
+      } else {
+        let successCount = 0;
+        let duplicateCount = 0;
 
-        try {
-          await addMapping(mapping);
-          successCount++;
-        } catch (addError) {
-          if (addError?.code === '23505' || addError?.message?.includes('duplicate')) {
+        for (const classId of formData.class_ids) {
+          const isDuplicate = mappings.some(
+            (m) => m.class_id === classId && m.subject_id === formData.subject_id
+          );
+
+          if (isDuplicate) {
             duplicateCount++;
           } else {
-            throw addError;
+            await addMapping({
+              class_id: classId,
+              subject_id: formData.subject_id,
+              teacher_id: formData.teacher_id,
+              weekly_periods: formData.weekly_periods,
+            });
+            successCount++;
           }
         }
-      }
 
-      await fetchMappings();
-      setShowModal(false);
-      setEditingMapping(null);
-      
-      alert(`Successfully created ${successCount} mappings.\nSkipped ${duplicateCount} duplicate mappings.`);
-    }
-  } catch (error) {
-    console.error(error);
-    alert(error.message);
-  }
-}
-
-  async function handleDelete(id) {
-    if (window.confirm("Are you sure you want to delete this mapping?")) {
-      try {
-        await deleteMapping(id);
         await fetchMappings();
-      } catch (error) {
-        console.error(error);
-        alert(error.message);
+        setShowModal(false);
+        setEditingMapping(null);
+        
+        if (duplicateCount > 0) {
+          toast.success(`Created ${successCount} mappings (${duplicateCount} skipped as duplicates)`);
+        } else {
+          toast.success(`Successfully created ${successCount} mappings`);
+        }
       }
+    } catch (error) {
+      console.error(error);
+      toast.error(error.message || "Failed to save mapping");
+    }
+  }
+
+  function handleDelete(id) {
+    setMappingToDelete(id);
+  }
+
+  async function confirmDeleteMapping() {
+    if (!mappingToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteMapping(mappingToDelete);
+      toast.success("Mapping deleted successfully");
+      await fetchMappings();
+    } catch (error) {
+      console.error(error);
+      toast.error(error.message || "Failed to delete mapping");
+    } finally {
+      setIsDeleting(false);
+      setMappingToDelete(null);
     }
   }
 
@@ -116,7 +131,7 @@ async function handleSubmit(formData) {
       setMappings(data);
     } catch (error) {
       console.error(error);
-      alert(error.message);
+      toast.error(error.message || "Failed to fetch mappings");
     } finally {
       setLoading(false);
     }
@@ -304,18 +319,27 @@ async function handleSubmit(formData) {
         </Card>
       </div>
       <MappingModal
-  isOpen={showModal}
-  initialData={editingMapping}
-  classes={classes}
-  subjects={subjects}
-  teachers={teachers}
-  onSubmit={handleSubmit}
-  onClose={() => {
-    setShowModal(false);
-    setEditingMapping(null);
-    
-  }}
-/>
+        isOpen={showModal}
+        initialData={editingMapping}
+        classes={classes}
+        subjects={subjects}
+        teachers={teachers}
+        onSubmit={handleSubmit}
+        onClose={() => {
+          setShowModal(false);
+          setEditingMapping(null);
+        }}
+      />
+
+      <ConfirmModal
+        isOpen={!!mappingToDelete}
+        onClose={() => setMappingToDelete(null)}
+        onConfirm={confirmDeleteMapping}
+        title="Delete Mapping?"
+        message="Are you sure you want to delete this class-subject-teacher mapping?"
+        confirmText="Delete Mapping"
+        loading={isDeleting}
+      />
     </AdminLayout>
   );
 }

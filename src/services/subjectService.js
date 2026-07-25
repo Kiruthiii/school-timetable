@@ -29,6 +29,12 @@ export async function updateSubject(id, subject) {
 }
 
 export async function deleteSubject(id) {
+  // Clean up all dependent records across tables to prevent FK constraint errors
+  await supabase.from("class_subject_teacher").delete().eq("subject_id", id);
+  await supabase.from("fixed_slots").delete().eq("subject_id", id);
+  await supabase.from("timetable").delete().eq("subject_id", id);
+  await supabase.from("weekly_progress").delete().eq("subject_id", id);
+
   const { error } = await supabase
     .from("subjects")
     .delete()
