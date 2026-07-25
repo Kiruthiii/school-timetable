@@ -3,3 +3,4 @@ export { default as Card, CardHeader, CardTitle, CardDescription, CardContent, C
 export { default as SearchBar } from "./SearchBar";
 export { default as Modal } from "./Modal";
 export { default as PageHeader } from "./PageHeader";
+export { default as ConfirmModal } from "./ConfirmModal";
