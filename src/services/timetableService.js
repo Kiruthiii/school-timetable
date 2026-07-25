@@ -1,12 +1,16 @@
 /* global PT_SUBJECT_ID */
-import { supabase } from "./supabase";
+import { supabase } from "./supabase.js";
 export const getMappings = async () => {
   const { data, error } = await supabase
     .from("class_subject_teacher")
     .select(`
       *,
       subjects (
-        priority
+        priority,
+        subject_name
+      ),
+      teachers (
+        teacher_name
       )
     `);
 
@@ -163,20 +167,97 @@ const getAvailableSubjects = (
 };
 
 /**
- * Sorts subjects by priority and remaining periods.
- * @param {Array} subjects - The available subjects to sort.
- * @returns {Array} The sorted subjects array.
+ * Calculates how many legal future placements remain for this subject today.
  */
-const sortSubjects = (subjects) => {
-  // Mutates the copy of the array just like the original code implementation
-  const sorted = [...subjects];
-  sorted.sort((a, b) => {
-    if (a.priority !== b.priority) {
-      return a.priority - b.priority;
+const calculateFuturePlacementCount = (candidate, cls, currentPeriod, teacherSchedule, teacherAvailability, fixedSlots, currentDay) => {
+  let count = 0;
+  const ptId = typeof PT_SUBJECT_ID !== "undefined" ? PT_SUBJECT_ID : undefined;
+
+  for (let p = currentPeriod + 1; p <= 8; p++) {
+    const fixedSlot = fixedSlots.find(
+      (slot) => slot.class_id === cls.id && slot.day_of_week === currentDay && slot.period === p
+    );
+    if (fixedSlot) continue;
+
+    if (!isTeacherAvailable(candidate.teacher_id, p, teacherAvailability)) continue;
+
+    if (candidate.subject_id !== ptId && teacherSchedule[p]?.[candidate.teacher_id]) continue;
+
+    count++;
+  }
+  return count;
+};
+
+/**
+ * Calculates remaining available slots for a teacher today.
+ */
+const calculateTeacherScarcity = (teacherId, currentPeriod, teacherSchedule, teacherAvailability) => {
+  let availableSlots = 0;
+  for (let p = currentPeriod + 1; p <= 8; p++) {
+    if (isTeacherAvailable(teacherId, p, teacherAvailability) && !teacherSchedule[p]?.[teacherId]) {
+      availableSlots++;
     }
-    return b.remaining_periods - a.remaining_periods;
+  }
+  return availableSlots;
+};
+
+/**
+ * Sorts subjects using a multi-factor greedy ranking.
+ */
+const sortSubjects = (
+  subjects,
+  cls,
+  currentPeriod,
+  teacherSchedule,
+  teacherAvailability,
+  fixedSlots,
+  currentDay
+) => {
+  const subjectsWithMetrics = subjects.map((subject) => {
+    const futurePlacementCount = calculateFuturePlacementCount(
+      subject,
+      cls,
+      currentPeriod,
+      teacherSchedule,
+      teacherAvailability,
+      fixedSlots,
+      currentDay
+    );
+    const teacherScarcity = calculateTeacherScarcity(
+      subject.teacher_id,
+      currentPeriod,
+      teacherSchedule,
+      teacherAvailability
+    );
+
+    const subjectName = subject.subjects?.subject_name || "Unknown";
+
+    console.log(
+      `Candidate: ${subjectName} | Priority: ${subject.priority} | Future Slots: ${futurePlacementCount} | Teacher Free Slots: ${teacherScarcity} | Remaining Weekly: ${subject.remaining_periods}`
+    );
+
+    return {
+      ...subject,
+      futurePlacementCount,
+      teacherScarcity,
+      subjectName,
+    };
   });
-  return sorted;
+
+  subjectsWithMetrics.sort((a, b) => {
+    // 1. Subject Priority (Lower number = higher priority)
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    // 2. Least Flexible Subject (Fewer future placements first)
+    if (a.futurePlacementCount !== b.futurePlacementCount) return a.futurePlacementCount - b.futurePlacementCount;
+    // 3. Teacher Scarcity (Fewer remaining free slots first)
+    if (a.teacherScarcity !== b.teacherScarcity) return a.teacherScarcity - b.teacherScarcity;
+    // 4. Remaining Weekly Periods (More remaining periods first)
+    if (a.remaining_periods !== b.remaining_periods) return b.remaining_periods - a.remaining_periods;
+    // 5. Stable Sort (Alphabetical by Subject Name)
+    return a.subjectName.localeCompare(b.subjectName);
+  });
+
+  return subjectsWithMetrics;
 };
 
 /**
@@ -223,6 +304,43 @@ const createTimetableEntry = (date, cls, period, subject_id, teacher_id) => {
     subject_id,
     teacher_id,
   };
+};
+
+const undoLastAllocation = (
+  historyItem,
+  classRemainingPeriods,
+  teacherSchedule,
+  todaySubjects,
+  classEntries
+) => {
+  // 1. Restore teacherSchedule
+  Object.keys(teacherSchedule).forEach(k => delete teacherSchedule[k]);
+  const snapTS = historyItem.snapshotBeforeAllocation.teacherSchedule;
+  Object.keys(snapTS).forEach(k => {
+    teacherSchedule[k] = { ...snapTS[k] };
+  });
+
+  // 2. Restore todaySubjects
+  todaySubjects.length = 0;
+  todaySubjects.push(...historyItem.snapshotBeforeAllocation.todaySubjects);
+
+  // 3. Restore remainingPeriods
+  const snapRP = historyItem.snapshotBeforeAllocation.remainingPeriods;
+  snapRP.forEach(snapItem => {
+    const originalItem = classRemainingPeriods.find(
+      r => r.class_id === snapItem.class_id && r.subject_id === snapItem.subject_id
+    );
+    if (originalItem) {
+      originalItem.remaining_periods = snapItem.remaining_periods;
+    }
+  });
+
+  // 4. Restore classEntries
+  for (let i = classEntries.length - 1; i >= 0; i--) {
+    if (classEntries[i].period >= historyItem.period) {
+      classEntries.splice(i, 1);
+    }
+  }
 };
 
 export const validateGenerationDate = (date) => {
@@ -281,8 +399,13 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
     const classSlipTestsCount = weekSlipTests.filter(st => st.class_id === cls.id).length;
     const assignSlipTestToday = classSlipTestsCount < slipTestPeriods;
 
-    for (let period = 1; period <= 8; period++) {
+    let period = 1;
+    const allocationHistory = [];
+
+    while (period <= 8) {
       const currentDay = new Date(date).getDay();
+
+      console.log(`\n--- Evaluating Day: ${new Date(date).toLocaleDateString('en-US', {weekday:'long'})}, Period: ${period}, Class: ${cls.class_name} ---`);
 
       const fixedSlot = fixedSlots.find(
         (slot) =>
@@ -292,17 +415,18 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
       );
 
       if (fixedSlot) {
-  classEntries.push({
-    date,
-    class_id: cls.id,
-    period,
-    subject_id: null,
-    teacher_id: null,
-    slot_type: fixedSlot.type,
-  });
-
-  continue;
-}
+        console.log(`Fixed slot found: ${fixedSlot.type}`);
+        classEntries.push({
+          date,
+          class_id: cls.id,
+          period,
+          subject_id: null,
+          teacher_id: null,
+          slot_type: fixedSlot.type,
+        });
+        period++;
+        continue;
+      }
 
       if (period === slipTestAllowedPeriod && assignSlipTestToday) {
         const classTeacherId = cls.class_teacher_id;
@@ -318,6 +442,7 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
           }
           teacherSchedule[period][classTeacherId] = true;
           
+          console.log(`Assigned Slip Test with class teacher ID: ${classTeacherId}`);
           classEntries.push({
             date,
             class_id: cls.id,
@@ -326,24 +451,220 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
             teacher_id: classTeacherId,
             slot_type: "Slip Test",
           });
+          period++;
           continue;
         }
       }
 
-      const availableSubjects = getAvailableSubjects(
-        classRemainingPeriods,
-        todaySubjects,
-        period,
-        availability,
-        teacherSchedule
-      );
+      const classAllMappings = mappings.filter(m => m.class_id === cls.id);
+      
+      const availableSubjects = [];
+      
+      const ptId = typeof PT_SUBJECT_ID !== "undefined" ? PT_SUBJECT_ID : undefined;
 
-      const sortedSubjects = sortSubjects(availableSubjects);
-      const selectedSubject = sortedSubjects[0];
-
-      if (!selectedSubject) {
-        continue;
+      for (const mapping of classAllMappings) {
+        let isRejected = false;
+        let reasons = [];
+        
+        const rem = classRemainingPeriods.find(r => r.subject_id === mapping.subject_id);
+        if (!rem || rem.remaining_periods <= 0) {
+          isRejected = true;
+          reasons.push("Weekly requirement completed");
+        }
+        
+        if (!isRejected && todaySubjects.includes(mapping.subject_id)) {
+          isRejected = true;
+          reasons.push("Already taught today");
+        }
+        
+        if (!isRejected) {
+          const availRecord = availability.find(a => a.teacher_id === mapping.teacher_id);
+          if (availRecord) {
+            if (availRecord.status === "Leave") {
+              isRejected = true;
+              reasons.push("Teacher Leave");
+            } else if (availRecord.status === "Half Day") {
+              if (availRecord.session === "Morning" && period <= 4) {
+                isRejected = true;
+                reasons.push("Half Day Restriction");
+              } else if (availRecord.session === "Afternoon" && period >= 5) {
+                isRejected = true;
+                reasons.push("Half Day Restriction");
+              }
+            }
+          }
+        }
+        
+        if (!isRejected && mapping.subject_id !== ptId && teacherSchedule[period]?.[mapping.teacher_id]) {
+          isRejected = true;
+          reasons.push("Teacher already occupied");
+        }
+        
+        const subjectName = mapping.subjects?.subject_name || 'Unknown';
+        if (isRejected) {
+          console.log(`Candidate: ${subjectName} -> REJECTED: ${reasons.join(', ')}`);
+        } else {
+          console.log(`Candidate: ${subjectName} -> ELIGIBLE`);
+          availableSubjects.push(rem);
+        }
       }
+
+      if (availableSubjects.length === 0) {
+        let restored = false;
+        let localBacktracks = 0;
+        
+        if (allocationHistory.length > 0) {
+            console.log(`\n==================================================`);
+            console.log(`FAILURE: No eligible subjects for Class ${cls.class_name}, Period ${period}.`);
+            console.log(`Initiating Backtracking...`);
+            console.log(`==================================================`);
+            
+            while (allocationHistory.length > 0 && localBacktracks < 3) {
+                const lastAlloc = allocationHistory.pop();
+                undoLastAllocation(lastAlloc, classRemainingPeriods, teacherSchedule, todaySubjects, classEntries);
+                localBacktracks++;
+                
+                if (lastAlloc.alternativeCandidates && lastAlloc.alternativeCandidates.length > 0) {
+                    const alternative = lastAlloc.alternativeCandidates[0];
+                    const remainingAlternatives = lastAlloc.alternativeCandidates.slice(1);
+                    
+                    console.log(`Backtracked to Period ${lastAlloc.period}. Trying alternative: ${alternative.subjects?.subject_name || 'Unknown'}`);
+                    
+                    const snapshotBeforeAllocation = {
+                        todaySubjects: [...todaySubjects],
+                        teacherSchedule: JSON.parse(JSON.stringify(teacherSchedule)),
+                        remainingPeriods: classRemainingPeriods.map(r => ({ class_id: r.class_id, subject_id: r.subject_id, remaining_periods: r.remaining_periods }))
+                    };
+                    
+                    updateTeacherSchedule(teacherSchedule, lastAlloc.period, alternative);
+                    allocateSubject(alternative, todaySubjects);
+                    
+                    classEntries.push(
+                        createTimetableEntry(
+                            date,
+                            cls,
+                            lastAlloc.period,
+                            alternative.subject_id,
+                            alternative.teacher_id
+                        )
+                    );
+                    
+                    allocationHistory.push({
+                        classId: cls.id,
+                        day: currentDay,
+                        period: lastAlloc.period,
+                        chosenSubject: alternative,
+                        chosenTeacher: alternative.teacher_id,
+                        alternativeCandidates: remainingAlternatives,
+                        snapshotBeforeAllocation
+                    });
+                    
+                    period = lastAlloc.period + 1;
+                    restored = true;
+                    break;
+                } else {
+                    console.log(`No alternatives for Period ${lastAlloc.period}. Backtracking further...`);
+                }
+            }
+        }
+        
+        if (restored) {
+            continue;
+        }
+
+        console.log(`\n==================================================`);
+        console.log(`FAILURE: Unresolved slot reached after backtracking (or no history).`);
+        console.log(`Class: ${cls.class_name}, Period: ${period}`);
+        console.log(`==================================================`);
+        
+        console.log(`\n1. Every mapped subject for ${cls.class_name}:`);
+        for (const mapping of classAllMappings) {
+          const subjectName = mapping.subjects?.subject_name || 'Unknown';
+          const teacherName = mapping.teachers?.teacher_name || 'Unknown';
+          const rem = classRemainingPeriods.find(r => r.subject_id === mapping.subject_id);
+          const remainingPeriods = rem ? rem.remaining_periods : 0;
+          
+          let alreadyTaught = todaySubjects.includes(mapping.subject_id) ? "Yes" : "No";
+          let teacherOccupied = (mapping.subject_id !== ptId && teacherSchedule[period]?.[mapping.teacher_id]) ? "Yes" : "No";
+          
+          let teacherUnavailable = "No";
+          const availRecord = availability.find(a => a.teacher_id === mapping.teacher_id);
+          if (availRecord) {
+            if (availRecord.status === "Leave") teacherUnavailable = "Yes (Leave)";
+            else if (availRecord.status === "Half Day") {
+              if (availRecord.session === "Morning" && period <= 4) teacherUnavailable = "Yes (Half Day Morning)";
+              else if (availRecord.session === "Afternoon" && period >= 5) teacherUnavailable = "Yes (Half Day Afternoon)";
+            }
+          }
+          
+          const fixedConflict = "No";
+          const consecutive = "No";
+          
+          let eligible = "Yes";
+          let rejectReason = "";
+          
+          if (remainingPeriods <= 0) { eligible = "No"; rejectReason = "Weekly Requirement Completed"; }
+          else if (alreadyTaught === "Yes") { eligible = "No"; rejectReason = "Already taught today"; }
+          else if (teacherUnavailable !== "No") { eligible = "No"; rejectReason = "Teacher Unavailable"; }
+          else if (teacherOccupied === "Yes") { eligible = "No"; rejectReason = "Teacher already occupied"; }
+          
+          console.log(`\n${subjectName}`);
+          console.log(`Teacher: ${teacherName} (ID: ${mapping.teacher_id})`);
+          console.log(`Remaining Weekly Periods: ${remainingPeriods}`);
+          console.log(`Already taught today? ${alreadyTaught}`);
+          console.log(`Teacher occupied? ${teacherOccupied}`);
+          console.log(`Teacher unavailable? ${teacherUnavailable}`);
+          console.log(`Fixed slot conflict? ${fixedConflict}`);
+          console.log(`Consecutive restriction? ${consecutive}`);
+          console.log(`Eligible? ${eligible}`);
+          if (eligible === "No") console.log(`Reason: ${rejectReason}`);
+        }
+        
+        console.log(`\n4. Complete teacher schedule for Period ${period}:`);
+        const scheduleForPeriod = teacherSchedule[period] || {};
+        console.log(`Teacher ID      Assigned`);
+        Object.keys(scheduleForPeriod).forEach(tid => {
+          console.log(`${tid.padEnd(15)} Yes`);
+        });
+        
+        console.log(`\n5. Subjects already allocated today for ${cls.class_name}:`);
+        console.log(todaySubjects.map(id => {
+          const m = classAllMappings.find(cm => cm.subject_id === id);
+          return m ? m.subjects?.subject_name : id;
+        }));
+        
+        console.log(`\n6. Remaining weekly periods for every subject in ${cls.class_name}:`);
+        classRemainingPeriods.forEach(r => {
+          console.log(`${r.subjects?.subject_name}: ${r.remaining_periods}`);
+        });
+
+        console.error(`Generation failed at Class ${cls.class_name}, Period ${period}. No eligible subjects available.`);
+        return { 
+            success: false, 
+            warnings: [`Generation Failed: Class ${cls.class_name}, Period ${period} could not be resolved. Tried local backtracking.`] 
+        };
+      }
+
+      console.log(`\n--- Ranking Candidates ---`);
+      const sortedSubjects = sortSubjects(
+        availableSubjects,
+        cls,
+        period,
+        teacherSchedule,
+        availability,
+        fixedSlots,
+        currentDay
+      );
+      const selectedSubject = sortedSubjects[0];
+      const alternativeCandidates = sortedSubjects.slice(1);
+
+      console.log(`SELECTED SUBJECT: ${selectedSubject.subjectName || 'Unknown'}`);
+
+      const snapshotBeforeAllocation = {
+          todaySubjects: [...todaySubjects],
+          teacherSchedule: JSON.parse(JSON.stringify(teacherSchedule)),
+          remainingPeriods: classRemainingPeriods.map(r => ({ class_id: r.class_id, subject_id: r.subject_id, remaining_periods: r.remaining_periods }))
+      };
 
       updateTeacherSchedule(teacherSchedule, period, selectedSubject);
       allocateSubject(selectedSubject, todaySubjects);
@@ -357,6 +678,18 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
           selectedSubject.teacher_id
         )
       );
+
+      allocationHistory.push({
+          classId: cls.id,
+          day: currentDay,
+          period: period,
+          chosenSubject: selectedSubject,
+          chosenTeacher: selectedSubject.teacher_id,
+          alternativeCandidates: alternativeCandidates,
+          snapshotBeforeAllocation
+      });
+
+      period++;
     }
 
     entries.push(...classEntries);
@@ -364,6 +697,7 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
 
   await saveTimetable(entries);
   const generatedCount = entries.length;
+  
   const { updatedSubjects } = await updateWeeklyProgress(entries, weekStartDate);
 
   return {
@@ -576,6 +910,23 @@ if (error) throw error;
 
 return data;
 
+};
+
+export const getConsolidatedTimetable = async (startDate, endDate) => {
+  const { data, error } = await supabase
+    .from("timetable")
+    .select(`
+      *,
+      classes(*),
+      subjects(*),
+      teachers(*)
+    `)
+    .gte("date", startDate)
+    .lte("date", endDate);
+
+  if (error) throw error;
+  
+  return data;
 };
 
 export const getSlipTestsForWeek = async (weekStartDate) => {

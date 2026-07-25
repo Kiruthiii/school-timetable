@@ -7,7 +7,7 @@ import {
 } from "../services/mappingService";
 import AdminLayout from "../layouts/AdminLayout";
 import { PageHeader, Card, CardContent, SearchBar } from "../components/ui";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, X } from "lucide-react";
 import { Button } from "../components/ui";
 import MappingModal from "../components/mapping/MappingModal";
 
@@ -26,6 +26,11 @@ function Mapping() {
 const [classes, setClasses] = useState([]);
 const [subjects, setSubjects] = useState([]);
 const [teachers, setTeachers] = useState([]);
+
+const [selectedClassId, setSelectedClassId] = useState("all");
+const [selectedTeacherId, setSelectedTeacherId] = useState("all");
+const [selectedSubjectId, setSelectedSubjectId] = useState("all");
+const [selectedPriority, setSelectedPriority] = useState("all");
 
 
 async function fetchDropdownData() {
@@ -128,12 +133,26 @@ async function handleSubmit(formData) {
     const subjectName = mapping.subjects?.subject_name?.toLowerCase() || "";
     const teacherName = mapping.teachers?.teacher_name?.toLowerCase() || "";
     
-    return (
+    const matchesSearch =
       className.includes(search) ||
       subjectName.includes(search) ||
-      teacherName.includes(search)
-    );
+      teacherName.includes(search);
+
+    const matchesClass = selectedClassId === "all" || String(mapping.class_id) === String(selectedClassId);
+    const matchesTeacher = selectedTeacherId === "all" || String(mapping.teacher_id) === String(selectedTeacherId);
+    const matchesSubject = selectedSubjectId === "all" || String(mapping.subject_id) === String(selectedSubjectId);
+    const matchesPriority = selectedPriority === "all" || String(mapping.subjects?.priority) === String(selectedPriority);
+
+    return matchesSearch && matchesClass && matchesTeacher && matchesSubject && matchesPriority;
   });
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedClassId("all");
+    setSelectedTeacherId("all");
+    setSelectedSubjectId("all");
+    setSelectedPriority("all");
+  };
 
   if (loading) {
     return (
@@ -189,12 +208,88 @@ async function handleSubmit(formData) {
               </div>
             ) : (
               <div className="space-y-4">
-                <SearchBar
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onClear={() => setSearchQuery("")}
-                  placeholder="Search mappings..."
-                />
+                <div className="flex flex-col gap-4 mb-4">
+                  <div className="flex flex-col md:flex-row gap-4 items-end">
+                    <div className="w-full md:w-1/4">
+                      <SearchBar
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onClear={() => setSearchQuery("")}
+                        placeholder="Search mappings..."
+                      />
+                    </div>
+                    
+                    <div className="w-full md:w-1/6 flex flex-col gap-1">
+                      <label className="text-xs text-slate-500 font-medium">Class</label>
+                      <select
+                        value={selectedClassId}
+                        onChange={(e) => setSelectedClassId(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                      >
+                        <option value="all">All Classes</option>
+                        {classes.map(c => (
+                          <option key={c.id} value={c.id}>{c.class_name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="w-full md:w-1/6 flex flex-col gap-1">
+                      <label className="text-xs text-slate-500 font-medium">Teacher</label>
+                      <select
+                        value={selectedTeacherId}
+                        onChange={(e) => setSelectedTeacherId(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                      >
+                        <option value="all">All Teachers</option>
+                        {teachers.map(t => (
+                          <option key={t.id} value={t.id}>{t.teacher_name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="w-full md:w-1/6 flex flex-col gap-1">
+                      <label className="text-xs text-slate-500 font-medium">Subject</label>
+                      <select
+                        value={selectedSubjectId}
+                        onChange={(e) => setSelectedSubjectId(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                      >
+                        <option value="all">All Subjects</option>
+                        {subjects.map(s => (
+                          <option key={s.id} value={s.id}>{s.subject_name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div className="w-full md:w-1/6 flex flex-col gap-1">
+                      <label className="text-xs text-slate-500 font-medium">Priority</label>
+                      <select
+                        value={selectedPriority}
+                        onChange={(e) => setSelectedPriority(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                      >
+                        <option value="all">All Priorities</option>
+                        <option value="1">1 (High)</option>
+                        <option value="2">2 (Medium)</option>
+                        <option value="3">3 (Low)</option>
+                        <option value="4">4 (Lowest)</option>
+                      </select>
+                    </div>
+                    
+                    <Button 
+                      variant="outline" 
+                      className="w-full md:w-auto h-[38px] px-4"
+                      onClick={clearFilters}
+                    >
+                      <X className="size-4 mr-2" />
+                      Clear Filters
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm text-slate-500 border-t border-slate-100 pt-3">
+                    <span>Showing {filteredMappings.length} of {mappings.length} mappings</span>
+                  </div>
+                </div>
                 <MappingTable
                   mappings={filteredMappings}
                   onEdit={(mapping) => {
