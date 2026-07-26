@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import {
   getSubjects,
   addSubject,
@@ -14,6 +15,7 @@ import {
   Card,
   CardContent,
   Button,
+  ConfirmModal,
 } from "../components/ui";
 
 import { Plus } from "lucide-react";
@@ -26,6 +28,8 @@ function Subjects() {
   const [loading, setLoading] = useState(true);
   const [editingSubject, setEditingSubject] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [subjectToDelete, setSubjectToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredSubjects = subjects.filter(
@@ -44,7 +48,7 @@ function Subjects() {
       setSubjects(data);
     } catch (error) {
       console.error(error);
-      alert(error.message);
+      toast.error(error.message || "Failed to fetch subjects");
     } finally {
       setLoading(false);
     }
@@ -58,8 +62,10 @@ function Subjects() {
     try {
       if (editingSubject) {
         await updateSubject(editingSubject.id, formData);
+        toast.success("Subject updated successfully");
       } else {
         await addSubject(formData);
+        toast.success("Subject added successfully");
       }
 
       await fetchSubjects();
@@ -68,23 +74,27 @@ function Subjects() {
       setEditingSubject(null);
     } catch (error) {
       console.error(error);
-      alert(error.message);
+      toast.error(error.message || "Failed to save subject");
     }
   }
 
-  async function handleDelete(id) {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this subject?"
-    );
+  function handleDelete(id) {
+    setSubjectToDelete(id);
+  }
 
-    if (!confirmed) return;
-
+  async function confirmDeleteSubject() {
+    if (!subjectToDelete) return;
+    setIsDeleting(true);
     try {
-      await deleteSubject(id);
+      await deleteSubject(subjectToDelete);
+      toast.success("Subject deleted successfully");
       await fetchSubjects();
     } catch (error) {
       console.error(error);
-      alert(error.message);
+      toast.error(error.message || "Failed to delete subject");
+    } finally {
+      setIsDeleting(false);
+      setSubjectToDelete(null);
     }
   }
 
@@ -157,6 +167,16 @@ function Subjects() {
           setEditingSubject(null);
         }}
         onSubmit={handleSubmit}
+      />
+
+      <ConfirmModal
+        isOpen={!!subjectToDelete}
+        onClose={() => setSubjectToDelete(null)}
+        onConfirm={confirmDeleteSubject}
+        title="Delete Subject?"
+        message="Are you sure you want to delete this subject? All associated teacher-class mappings and fixed slot rules for this subject will also be deleted."
+        confirmText="Delete Subject"
+        loading={isDeleting}
       />
     </AdminLayout>
   );

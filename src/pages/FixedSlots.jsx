@@ -14,6 +14,7 @@ import {
   Card,
   CardContent,
   Button,
+  ConfirmModal,
 } from "../components/ui";
 
 import { Plus } from "lucide-react";
@@ -30,6 +31,8 @@ function FixedSlots() {
   const [loading, setLoading] = useState(true);
   const [editingSlot, setEditingSlot] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [slotToDelete, setSlotToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchClass, setSearchClass] = useState("");
   const [filterDay, setFilterDay] = useState("");
   const [filterPeriod, setFilterPeriod] = useState("");
@@ -133,20 +136,23 @@ function FixedSlots() {
     }
   }
 
-  async function handleDelete(id) {
-    const confirmed = window.confirm(
-      "Delete Reserved Period?\n\nThis action cannot be undone."
-    );
+  function handleDelete(id) {
+    setSlotToDelete(id);
+  }
 
-    if (!confirmed) return;
-
+  async function confirmDeleteSlot() {
+    if (!slotToDelete) return;
+    setIsDeleting(true);
     try {
-      await deleteFixedSlot(id);
+      await deleteFixedSlot(slotToDelete);
       toast.success("Reserved period deleted successfully.");
       await fetchData();
     } catch (error) {
       console.error(error);
       toast.error(error.message || "Failed to delete reserved period");
+    } finally {
+      setIsDeleting(false);
+      setSlotToDelete(null);
     }
   }
 
@@ -249,6 +255,16 @@ function FixedSlots() {
         }}
         onSubmit={handleSubmit}
         classes={classes}
+      />
+
+      <ConfirmModal
+        isOpen={!!slotToDelete}
+        onClose={() => setSlotToDelete(null)}
+        onConfirm={confirmDeleteSlot}
+        title="Delete Reserved Period?"
+        message="Are you sure you want to delete this reserved period slot? This action cannot be undone."
+        confirmText="Delete Slot"
+        loading={isDeleting}
       />
     </AdminLayout>
   );

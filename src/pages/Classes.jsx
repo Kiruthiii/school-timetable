@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import {
   getClasses,
   addClass,
@@ -15,6 +16,7 @@ import {
   Card,
   CardContent,
   Button,
+  ConfirmModal,
 } from "../components/ui";
 
 import { Plus } from "lucide-react";
@@ -28,6 +30,8 @@ function Classes() {
   const [loading, setLoading] = useState(true);
   const [editingClass, setEditingClass] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [classToDelete, setClassToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredClasses = classes.filter((cls) =>
@@ -47,7 +51,7 @@ function Classes() {
       setTeachers(teachersData);
     } catch (error) {
       console.error(error);
-      alert(error.message);
+      toast.error(error.message || "Failed to fetch classes");
     } finally {
       setLoading(false);
     }
@@ -61,8 +65,10 @@ function Classes() {
   try {
     if (editingClass) {
       await updateClass(editingClass.id, formData);
+      toast.success("Class updated successfully");
     } else {
       await addClass(formData);
+      toast.success("Class added successfully");
     }
 
     await fetchData();
@@ -72,24 +78,27 @@ function Classes() {
 
   } catch (error) {
     console.error(error);
-    alert(error.message);
+    toast.error(error.message || "Failed to save class");
   }
 }
 
-  async function handleDelete(id) {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this class?"
-    );
+  function handleDelete(id) {
+    setClassToDelete(id);
+  }
 
-    if (!confirmed) return;
-
+  async function confirmDeleteClass() {
+    if (!classToDelete) return;
+    setIsDeleting(true);
     try {
-      await deleteClass(id);
-
+      await deleteClass(classToDelete);
+      toast.success("Class deleted successfully");
       await fetchData();
     } catch (error) {
       console.error(error);
-      alert(error.message);
+      toast.error(error.message || "Failed to delete class");
+    } finally {
+      setIsDeleting(false);
+      setClassToDelete(null);
     }
   }
 
@@ -163,6 +172,16 @@ function Classes() {
         }}
         onSubmit={handleSubmit}
         teachers={teachers}
+      />
+
+      <ConfirmModal
+        isOpen={!!classToDelete}
+        onClose={() => setClassToDelete(null)}
+        onConfirm={confirmDeleteClass}
+        title="Delete Class?"
+        message="Are you sure you want to delete this class? All associated subject mappings and fixed slot rules will also be deleted."
+        confirmText="Delete Class"
+        loading={isDeleting}
       />
     </AdminLayout>
   );

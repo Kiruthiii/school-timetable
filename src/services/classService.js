@@ -35,6 +35,12 @@ export async function updateClass(id, classData) {
 }
 
 export async function deleteClass(id) {
+  // Clean up all dependent records across tables to prevent FK constraint errors
+  await supabase.from("class_subject_teacher").delete().eq("class_id", id);
+  await supabase.from("fixed_slots").delete().eq("class_id", id);
+  await supabase.from("timetable").delete().eq("class_id", id);
+  await supabase.from("weekly_progress").delete().eq("class_id", id);
+
   const { error } = await supabase
     .from("classes")
     .delete()
