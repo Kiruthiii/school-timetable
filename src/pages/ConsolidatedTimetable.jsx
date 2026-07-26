@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "../layouts/AdminLayout";
 import { PageHeader, Card, CardContent, Button } from "../components/ui";
-import { Loader2, Calendar as CalendarIcon, AlertCircle, Play, RefreshCw, ChevronLeft } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, AlertCircle, Play, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { getConsolidatedTimetable, getClasses, getTimetableForDate, generateTimetable } from "../services/timetableService";
 import clsx from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -113,6 +113,12 @@ function ConsolidatedTimetable() {
     setSelectedDate(prev.toISOString().split('T')[0]);
   };
 
+  const handleNextDay = () => {
+    const next = new Date(selectedDate);
+    next.setDate(next.getDate() + 1);
+    setSelectedDate(next.toISOString().split('T')[0]);
+  };
+
   const periods = [1, 2, 3, 4, 5, 6, 7, 8];
 
   const getEntry = (classId, period, date) => {
@@ -164,6 +170,16 @@ function ConsolidatedTimetable() {
                       className="pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 font-medium hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all w-full sm:w-auto shadow-sm"
                     />
                   </div>
+
+                  <Button 
+                    variant="outline" 
+                    onClick={handleNextDay}
+                    disabled={isLoading || isGenerating}
+                    className="px-3 py-2.5 shadow-sm"
+                    title="Next Day"
+                  >
+                    <ChevronRight className="size-4" />
+                  </Button>
                 </div>
               </div>
 
