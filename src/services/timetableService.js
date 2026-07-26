@@ -279,7 +279,7 @@ const allocateSubject = (selectedSubject, todaySubjects) => {
 const updateTeacherSchedule = (teacherSchedule, period, selectedSubject) => {
   const ptId = typeof PT_SUBJECT_ID !== "undefined" ? PT_SUBJECT_ID : undefined;
 
-  if (selectedSubject.subject_id !== ptId) {
+  if (selectedSubject && selectedSubject.subject_id !== ptId && selectedSubject.teacher_id) {
     if (!teacherSchedule[period]) {
       teacherSchedule[period] = {};
     }
@@ -509,16 +509,71 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
         }
       }
 
+      // Tier 2: Allow repeating a subject today if it has remaining weekly periods and its teacher is available & free
+      if (availableSubjects.length === 0) {
+        for (const mapping of classAllMappings) {
+          const rem = classRemainingPeriods.find(r => r.subject_id === mapping.subject_id);
+          if (!rem || rem.remaining_periods <= 0) continue;
+
+          let teacherFree = true;
+          if (mapping.teacher_id) {
+            const availRecord = availability.find(a => a.teacher_id === mapping.teacher_id);
+            if (availRecord) {
+              if (availRecord.status === "Leave") teacherFree = false;
+              else if (availRecord.status === "Half Day") {
+                if (availRecord.session === "Morning" && period <= 4) teacherFree = false;
+                else if (availRecord.session === "Afternoon" && period >= 5) teacherFree = false;
+              }
+            }
+            if (mapping.subject_id !== ptId && teacherSchedule[period]?.[mapping.teacher_id]) {
+              teacherFree = false;
+            }
+          }
+
+          if (teacherFree) {
+            availableSubjects.push(rem);
+          }
+        }
+      }
+
+      // Tier 3: If all weekly targets are reached, allow ANY mapped subject for this class whose teacher is free
+      if (availableSubjects.length === 0) {
+        for (const mapping of classAllMappings) {
+          let teacherFree = true;
+          if (mapping.teacher_id) {
+            const availRecord = availability.find(a => a.teacher_id === mapping.teacher_id);
+            if (availRecord) {
+              if (availRecord.status === "Leave") teacherFree = false;
+              else if (availRecord.status === "Half Day") {
+                if (availRecord.session === "Morning" && period <= 4) teacherFree = false;
+                else if (availRecord.session === "Afternoon" && period >= 5) teacherFree = false;
+              }
+            }
+            if (mapping.subject_id !== ptId && teacherSchedule[period]?.[mapping.teacher_id]) {
+              teacherFree = false;
+            }
+          }
+
+          if (teacherFree) {
+            const rem = classRemainingPeriods.find(r => r.subject_id === mapping.subject_id);
+            availableSubjects.push(rem || { ...mapping, remaining_periods: 0 });
+          }
+        }
+      }
+
+      // Tier 4: Ultimate Fallback - Assign any mapped subject for this class so NO PERIOD is ever left as a Free Period
+      if (availableSubjects.length === 0 && classAllMappings.length > 0) {
+        for (const mapping of classAllMappings) {
+          const rem = classRemainingPeriods.find(r => r.subject_id === mapping.subject_id);
+          availableSubjects.push(rem || { ...mapping, remaining_periods: 0 });
+        }
+      }
+
       if (availableSubjects.length === 0) {
         let restored = false;
         let localBacktracks = 0;
         
         if (allocationHistory.length > 0) {
-            console.log(`\n==================================================`);
-            console.log(`FAILURE: No eligible subjects for Class ${cls.class_name}, Period ${period}.`);
-            console.log(`Initiating Backtracking...`);
-            console.log(`==================================================`);
-            
             while (allocationHistory.length > 0 && localBacktracks < 3) {
                 const lastAlloc = allocationHistory.pop();
                 undoLastAllocation(lastAlloc, classRemainingPeriods, teacherSchedule, todaySubjects, classEntries);
@@ -527,8 +582,6 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
                 if (lastAlloc.alternativeCandidates && lastAlloc.alternativeCandidates.length > 0) {
                     const alternative = lastAlloc.alternativeCandidates[0];
                     const remainingAlternatives = lastAlloc.alternativeCandidates.slice(1);
-                    
-                    console.log(`Backtracked to Period ${lastAlloc.period}. Trying alternative: ${alternative.subjects?.subject_name || 'Unknown'}`);
                     
                     const snapshotBeforeAllocation = {
                         todaySubjects: [...todaySubjects],
@@ -562,8 +615,6 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
                     period = lastAlloc.period + 1;
                     restored = true;
                     break;
-                } else {
-                    console.log(`No alternatives for Period ${lastAlloc.period}. Backtracking further...`);
                 }
             }
         }
@@ -571,78 +622,6 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
         if (restored) {
             continue;
         }
-
-        console.log(`\n==================================================`);
-        console.log(`FAILURE: Unresolved slot reached after backtracking (or no history).`);
-        console.log(`Class: ${cls.class_name}, Period: ${period}`);
-        console.log(`==================================================`);
-        
-        console.log(`\n1. Every mapped subject for ${cls.class_name}:`);
-        for (const mapping of classAllMappings) {
-          const subjectName = mapping.subjects?.subject_name || 'Unknown';
-          const teacherName = mapping.teachers?.teacher_name || 'Unknown';
-          const rem = classRemainingPeriods.find(r => r.subject_id === mapping.subject_id);
-          const remainingPeriods = rem ? rem.remaining_periods : 0;
-          
-          let alreadyTaught = todaySubjects.includes(mapping.subject_id) ? "Yes" : "No";
-          let teacherOccupied = (mapping.subject_id !== ptId && teacherSchedule[period]?.[mapping.teacher_id]) ? "Yes" : "No";
-          
-          let teacherUnavailable = "No";
-          const availRecord = availability.find(a => a.teacher_id === mapping.teacher_id);
-          if (availRecord) {
-            if (availRecord.status === "Leave") teacherUnavailable = "Yes (Leave)";
-            else if (availRecord.status === "Half Day") {
-              if (availRecord.session === "Morning" && period <= 4) teacherUnavailable = "Yes (Half Day Morning)";
-              else if (availRecord.session === "Afternoon" && period >= 5) teacherUnavailable = "Yes (Half Day Afternoon)";
-            }
-          }
-          
-          const fixedConflict = "No";
-          const consecutive = "No";
-          
-          let eligible = "Yes";
-          let rejectReason = "";
-          
-          if (remainingPeriods <= 0) { eligible = "No"; rejectReason = "Weekly Requirement Completed"; }
-          else if (alreadyTaught === "Yes") { eligible = "No"; rejectReason = "Already taught today"; }
-          else if (teacherUnavailable !== "No") { eligible = "No"; rejectReason = "Teacher Unavailable"; }
-          else if (teacherOccupied === "Yes") { eligible = "No"; rejectReason = "Teacher already occupied"; }
-          
-          console.log(`\n${subjectName}`);
-          console.log(`Teacher: ${teacherName} (ID: ${mapping.teacher_id})`);
-          console.log(`Remaining Weekly Periods: ${remainingPeriods}`);
-          console.log(`Already taught today? ${alreadyTaught}`);
-          console.log(`Teacher occupied? ${teacherOccupied}`);
-          console.log(`Teacher unavailable? ${teacherUnavailable}`);
-          console.log(`Fixed slot conflict? ${fixedConflict}`);
-          console.log(`Consecutive restriction? ${consecutive}`);
-          console.log(`Eligible? ${eligible}`);
-          if (eligible === "No") console.log(`Reason: ${rejectReason}`);
-        }
-        
-        console.log(`\n4. Complete teacher schedule for Period ${period}:`);
-        const scheduleForPeriod = teacherSchedule[period] || {};
-        console.log(`Teacher ID      Assigned`);
-        Object.keys(scheduleForPeriod).forEach(tid => {
-          console.log(`${tid.padEnd(15)} Yes`);
-        });
-        
-        console.log(`\n5. Subjects already allocated today for ${cls.class_name}:`);
-        console.log(todaySubjects.map(id => {
-          const m = classAllMappings.find(cm => cm.subject_id === id);
-          return m ? m.subjects?.subject_name : id;
-        }));
-        
-        console.log(`\n6. Remaining weekly periods for every subject in ${cls.class_name}:`);
-        classRemainingPeriods.forEach(r => {
-          console.log(`${r.subjects?.subject_name}: ${r.remaining_periods}`);
-        });
-
-        console.error(`Generation failed at Class ${cls.class_name}, Period ${period}. No eligible subjects available.`);
-        return { 
-            success: false, 
-            warnings: [`Generation Failed: Class ${cls.class_name}, Period ${period} could not be resolved. Tried local backtracking.`] 
-        };
       }
 
       console.log(`\n--- Ranking Candidates ---`);
