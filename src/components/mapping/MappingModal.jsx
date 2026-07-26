@@ -8,6 +8,7 @@ function MappingModal({
   classes,
   subjects,
   teachers,
+  preselectedClassId,
   onSubmit,
 }) {
   return (
@@ -27,6 +28,7 @@ function MappingModal({
         classes={classes}
         subjects={subjects}
         teachers={teachers}
+        preselectedClassId={preselectedClassId}
         onSubmit={onSubmit}
         onCancel={onClose}
       />

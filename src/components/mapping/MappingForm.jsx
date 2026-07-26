@@ -6,6 +6,7 @@ function MappingForm({
   classes,
   subjects,
   teachers,
+  preselectedClassId,
   onSubmit,
   onCancel,
 }) {
@@ -30,11 +31,12 @@ function MappingForm({
       // Initialize selectedClasses
       const initialSelected = {};
       classes.forEach((cls) => {
-        initialSelected[cls.id] = { selected: false, periods: "" };
+        const isPreselected = preselectedClassId && String(cls.id) === String(preselectedClassId);
+        initialSelected[cls.id] = { selected: !!isPreselected, periods: "" };
       });
       setSelectedClasses(initialSelected);
     }
-  }, [initialData, classes]);
+  }, [initialData, classes, preselectedClassId]);
 
   const handleClassToggle = (id) => {
     setSelectedClasses((prev) => ({
@@ -62,7 +64,7 @@ function MappingForm({
       await onSubmit({
         class_id: classId,
         subject_id: subjectId,
-        teacher_id: teacherId,
+        teacher_id: teacherId || null,
         weekly_periods: weeklyPeriods,
       });
     } else {
@@ -78,7 +80,7 @@ function MappingForm({
           mappingsToCreate.push({
             class_id: cls.id,
             subject_id: subjectId,
-            teacher_id: teacherId,
+            teacher_id: teacherId || null,
             weekly_periods: data.periods,
           });
         }
