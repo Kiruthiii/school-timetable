@@ -18,7 +18,6 @@ const navigation = [
   { name: "Subjects", href: "/subjects", icon: BookOpen },
   { name: "Classes", href: "/classes", icon: Building2 },
   { name: "Mapping", href: "/mapping", icon: Link2 },
-  { name: "Class Timetable", href: "/timetable", icon: Calendar },
   { name: "Consolidated Timetable", href: "/consolidated-timetable", icon: Calendar },
   { name: "Fixed Slots", href: "/fixed-slots", icon: CalendarCheck },
 ];
