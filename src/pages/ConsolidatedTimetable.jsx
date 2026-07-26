@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "../layouts/AdminLayout";
 import { PageHeader, Card, CardContent, Button } from "../components/ui";
-import { Download, Upload, Loader2, Calendar as CalendarIcon, FileSpreadsheet, AlertCircle } from "lucide-react";
-import { getConsolidatedTimetable, getClasses } from "../services/timetableService";
+import { Loader2, Calendar as CalendarIcon, AlertCircle, Play, RefreshCw, ChevronLeft } from "lucide-react";
+import { getConsolidatedTimetable, getClasses, getTimetableForDate, generateTimetable } from "../services/timetableService";
 import clsx from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -10,33 +10,17 @@ function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-// Helper to get week dates based on a selected date
-const getWeekDates = (currentDate) => {
-  const date = new Date(currentDate);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(date.setDate(diff));
-  
-  const weekDays = [];
-  for (let i = 0; i < 6; i++) { // Monday to Saturday
-    const dayDate = new Date(monday);
-    dayDate.setDate(monday.getDate() + i);
-    weekDays.push({
-      name: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][i],
-      date: dayDate.toISOString().split('T')[0],
-      dayIndex: i + 1
-    });
-  }
-  return weekDays;
-};
-
 function ConsolidatedTimetable() {
   const [classes, setClasses] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  
+  const todayDate = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState(todayDate);
+  
   const [timetable, setTimetable] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState(null);
-  const [weekDays, setWeekDays] = useState([]);
+  const [hasTimetable, setHasTimetable] = useState(false);
 
   useEffect(() => {
     const fetchClasses = async () => {
@@ -57,10 +41,33 @@ function ConsolidatedTimetable() {
   }, []);
 
   useEffect(() => {
-    const days = getWeekDates(selectedDate);
-    setWeekDays(days);
-    loadTimetable(days[0].date, days[5].date);
+    checkExistingTimetable();
   }, [selectedDate]);
+
+  useEffect(() => {
+    if (hasTimetable) {
+      loadTimetable(selectedDate, selectedDate);
+    } else {
+      setTimetable([]);
+    }
+  }, [hasTimetable, selectedDate]);
+
+  const checkExistingTimetable = async () => {
+    setIsLoading(true);
+    try {
+      const existing = await getTimetableForDate(selectedDate);
+      if (existing && existing.length > 0) {
+        setHasTimetable(true);
+      } else {
+        setHasTimetable(false);
+      }
+    } catch (err) {
+      console.error("Failed to check timetable", err);
+      setHasTimetable(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadTimetable = async (startDate, endDate) => {
     if (!startDate || !endDate) return;
@@ -78,12 +85,32 @@ function ConsolidatedTimetable() {
     }
   };
 
-  const handleDateChange = (e) => {
-    setSelectedDate(e.target.value);
+  const handleGenerate = async () => {
+    if (hasTimetable) {
+      const confirmed = window.confirm("Today's timetable already exists.\nDo you want to regenerate it?");
+      if (!confirmed) return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const result = await generateTimetable(selectedDate, 0, 8);
+      if (result.success) {
+        setHasTimetable(true);
+      } else {
+        alert("Generation failed: " + (result.warnings?.join(", ") || "Unknown error"));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("An error occurred during generation.");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
-  const handleTabClick = (dateStr) => {
-    setSelectedDate(dateStr);
+  const handlePreviousDay = () => {
+    const prev = new Date(selectedDate);
+    prev.setDate(prev.getDate() - 1);
+    setSelectedDate(prev.toISOString().split('T')[0]);
   };
 
   const periods = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -103,63 +130,62 @@ function ConsolidatedTimetable() {
       <div className="space-y-6">
         <PageHeader
           title="Consolidated Timetable"
-          description="View the master schedule across all classes for a specific day"
-          action={
-            <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-              <Button variant="outline" className="w-full sm:w-auto shadow-sm hover:bg-slate-50 transition-colors">
-                <FileSpreadsheet className="size-4 mr-2 text-primary" aria-hidden="true" />
-                Export CSV
-              </Button>
-            </div>
-          }
+          description="View and manage the master schedule for today across all classes"
         />
 
         <Card className="border border-border/60 shadow-sm overflow-hidden bg-white/50 backdrop-blur-sm rounded-2xl">
           <CardContent className="p-6">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
               <div className="flex flex-col gap-2">
                 <label htmlFor="date-select" className="text-sm font-semibold text-slate-700">
-                  Select Week By Date
+                  Select Date
                 </label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <CalendarIcon className="size-4 text-slate-400 group-focus-within:text-primary transition-colors" />
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={handlePreviousDay}
+                    disabled={isLoading || isGenerating}
+                    className="px-3 py-2.5 shadow-sm"
+                    title="Previous Day"
+                  >
+                    <ChevronLeft className="size-4" />
+                  </Button>
+                  
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <CalendarIcon className="size-4 text-slate-400 group-focus-within:text-primary transition-colors" />
+                    </div>
+                    <input
+                      type="date"
+                      id="date-select"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      disabled={isLoading || isGenerating}
+                      className="pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 font-medium hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all w-full sm:w-auto shadow-sm"
+                    />
                   </div>
-                  <input
-                    type="date"
-                    id="date-select"
-                    value={selectedDate}
-                    onChange={handleDateChange}
-                    className="pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 font-medium hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all w-full sm:w-auto shadow-sm"
-                  />
                 </div>
               </div>
 
-              {/* Day Tabs */}
-              <div className="flex bg-slate-100/80 p-1.5 rounded-xl overflow-x-auto w-full lg:w-auto scrollbar-hide border border-slate-200/60 shadow-inner">
-                {weekDays.map((day) => {
-                  const isActive = selectedDate === day.date;
-                  return (
-                    <button
-                      key={day.date}
-                      onClick={() => handleTabClick(day.date)}
-                      className={cn(
-                        "whitespace-nowrap px-5 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 flex flex-col items-center min-w-[100px]",
-                        isActive 
-                          ? "bg-white text-primary shadow-sm ring-1 ring-slate-200 scale-100" 
-                          : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 scale-95 hover:scale-100"
-                      )}
-                    >
-                      <span>{day.name}</span>
-                      <span className={cn(
-                        "text-[10px] mt-0.5",
-                        isActive ? "text-primary/70 font-medium" : "text-slate-400"
-                      )}>
-                        {new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                      </span>
-                    </button>
-                  );
-                })}
+              <div className="flex items-end">
+                <Button onClick={handleGenerate} disabled={isLoading || isGenerating} className="w-full sm:w-auto">
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="size-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : hasTimetable ? (
+                    <>
+                      <RefreshCw className="size-4 mr-2" />
+                      Regenerate Timetable
+                    </>
+                  ) : (
+                    <>
+                      <Play className="size-4 mr-2" />
+                      Generate Timetable
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -173,13 +199,15 @@ function ConsolidatedTimetable() {
                 <AlertCircle className="size-10 mb-4 text-red-400" />
                 <p className="font-medium text-lg">{error}</p>
               </div>
-            ) : isLoading ? (
+            ) : isLoading || isGenerating ? (
               <div className="flex flex-col items-center justify-center p-24 text-slate-500">
                 <div className="relative">
                   <Loader2 className="size-10 animate-spin text-primary/30" />
                   <Loader2 className="size-10 animate-spin text-primary absolute top-0 left-0" style={{ animationDirection: 'reverse', animationDuration: '3s' }} />
                 </div>
-                <p className="mt-4 font-medium animate-pulse text-slate-600">Loading master schedule...</p>
+                <p className="mt-4 font-medium animate-pulse text-slate-600">
+                  {isGenerating ? "Generating master schedule..." : "Loading master schedule..."}
+                </p>
               </div>
             ) : classes.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-24 text-slate-500 bg-slate-50/50">
@@ -187,11 +215,11 @@ function ConsolidatedTimetable() {
                 <p className="font-medium text-lg text-slate-600">No classes available.</p>
                 <p className="text-sm text-slate-400 mt-1">Please ensure classes are set up in the system.</p>
               </div>
-            ) : currentDayEntriesCount === 0 ? (
+            ) : !hasTimetable || currentDayEntriesCount === 0 ? (
               <div className="flex flex-col items-center justify-center p-24 text-slate-500 bg-slate-50/50">
                 <CalendarIcon className="size-12 mb-4 text-slate-300" />
-                <p className="font-medium text-lg text-slate-600">No timetable generated for this date.</p>
-                <p className="text-sm text-slate-400 mt-1">Go to the Class Timetable page to generate the schedule.</p>
+                <p className="font-medium text-lg text-slate-600">No timetable generated for today.</p>
+                <p className="text-sm text-slate-400 mt-1">Click "Generate Timetable" to create the schedule for {new Date(selectedDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}.</p>
               </div>
             ) : (
               <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">

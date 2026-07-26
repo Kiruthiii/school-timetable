@@ -6,7 +6,6 @@ import Dashboard from "./pages/Dashboard";
 import Teachers from "./pages/Teachers";
 import Classes from "./pages/Classes";
 import Subjects from "./pages/Subjects";
-import Timetable from "./pages/Timetable";
 import ConsolidatedTimetable from "./pages/ConsolidatedTimetable";
 import Mapping from "./pages/Mapping";
 import FixedSlots from "./pages/FixedSlots";
@@ -68,14 +67,6 @@ function App() {
           }
         />
 
-        <Route
-          path="/timetable"
-          element={
-            <ProtectedRoute>
-              <Timetable />
-            </ProtectedRoute>
-          }
-        />
 
         <Route
           path="/consolidated-timetable"
