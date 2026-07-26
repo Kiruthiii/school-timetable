@@ -36,7 +36,13 @@ const [selectedClassId, setSelectedClassId] = useState("all");
 const [selectedTeacherId, setSelectedTeacherId] = useState("all");
 const [selectedSubjectId, setSelectedSubjectId] = useState("all");
 const [selectedPriority, setSelectedPriority] = useState("all");
+  const [preselectedClassId, setPreselectedClassId] = useState(null);
 
+  const handleOpenAddModal = (classId = null) => {
+    setEditingMapping(null);
+    setPreselectedClassId(classId);
+    setShowModal(true);
+  };
 
 async function fetchDropdownData() {
   try {
@@ -61,31 +67,36 @@ async function fetchDropdownData() {
         await updateMapping(editingMapping.id, {
           class_id: formData.class_id,
           subject_id: formData.subject_id,
-          teacher_id: formData.teacher_id,
-          weekly_periods: formData.weekly_periods,
+          teacher_id: formData.teacher_id || null,
+          weekly_periods: Number(formData.weekly_periods),
         });
 
         await fetchMappings();
         setShowModal(false);
         setEditingMapping(null);
+        setPreselectedClassId(null);
         toast.success("Mapping updated successfully");
       } else {
         let successCount = 0;
         let duplicateCount = 0;
 
-        for (const classId of formData.class_ids) {
+        const itemsToCreate = Array.isArray(formData) ? formData : [formData];
+
+        for (const item of itemsToCreate) {
           const isDuplicate = mappings.some(
-            (m) => m.class_id === classId && m.subject_id === formData.subject_id
+            (m) =>
+              String(m.class_id) === String(item.class_id) &&
+              String(m.subject_id) === String(item.subject_id)
           );
 
           if (isDuplicate) {
             duplicateCount++;
           } else {
             await addMapping({
-              class_id: classId,
-              subject_id: formData.subject_id,
-              teacher_id: formData.teacher_id,
-              weekly_periods: formData.weekly_periods,
+              class_id: item.class_id,
+              subject_id: item.subject_id,
+              teacher_id: item.teacher_id || null,
+              weekly_periods: Number(item.weekly_periods),
             });
             successCount++;
           }
@@ -94,11 +105,16 @@ async function fetchDropdownData() {
         await fetchMappings();
         setShowModal(false);
         setEditingMapping(null);
-        
-        if (duplicateCount > 0) {
-          toast.success(`Created ${successCount} mappings (${duplicateCount} skipped as duplicates)`);
+        setPreselectedClassId(null);
+
+        if (duplicateCount > 0 && successCount > 0) {
+          toast.success(
+            `Created ${successCount} mapping(s) (${duplicateCount} skipped as duplicate)`
+          );
+        } else if (duplicateCount > 0 && successCount === 0) {
+          toast.error("Mapping already exists for selected class and subject");
         } else {
-          toast.success(`Successfully created ${successCount} mappings`);
+          toast.success(`Successfully created ${successCount} mapping(s)`);
         }
       }
     } catch (error) {
@@ -228,10 +244,7 @@ async function fetchDropdownData() {
               </div>
 
               <Button
-                onClick={() => {
-                  setEditingMapping(null);
-                  setShowModal(true);
-                }}
+                onClick={() => handleOpenAddModal(null)}
               >
                 <Plus className="size-4 mr-1" />
                 Add Mapping Node
@@ -251,10 +264,7 @@ async function fetchDropdownData() {
               setShowModal(true);
             }}
             onDelete={handleDelete}
-            onAdd={() => {
-              setEditingMapping(null);
-              setShowModal(true);
-            }}
+            onAdd={(classId) => handleOpenAddModal(classId)}
           />
         ) : (
           <Card variant="default" padding="md">
@@ -376,10 +386,12 @@ async function fetchDropdownData() {
         classes={classes}
         subjects={subjects}
         teachers={teachers}
+        preselectedClassId={preselectedClassId}
         onSubmit={handleSubmit}
         onClose={() => {
           setShowModal(false);
           setEditingMapping(null);
+          setPreselectedClassId(null);
         }}
       />
 

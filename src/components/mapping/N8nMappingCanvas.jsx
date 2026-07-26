@@ -92,7 +92,7 @@ export default function N8nMappingCanvas({
       }
 
       // Line 2: Mapping Node -> Teacher
-      if (mapOutPort && teacherPort) {
+      if (mapping.teacher_id && mapOutPort && teacherPort) {
         const r1 = mapOutPort.getBoundingClientRect();
         const r2 = teacherPort.getBoundingClientRect();
 
@@ -121,10 +121,17 @@ export default function N8nMappingCanvas({
   useEffect(() => {
     updateLines();
     const timer = setTimeout(updateLines, 100);
+    const canvasEl = canvasRef.current;
     window.addEventListener("resize", updateLines);
+    if (canvasEl) {
+      canvasEl.addEventListener("scroll", updateLines);
+    }
     return () => {
       clearTimeout(timer);
       window.removeEventListener("resize", updateLines);
+      if (canvasEl) {
+        canvasEl.removeEventListener("scroll", updateLines);
+      }
     };
   }, [activeMappings, zoom, activeNode, selectedClassId]);
 
@@ -145,74 +152,15 @@ export default function N8nMappingCanvas({
 
   return (
     <div className="relative w-full rounded-2xl overflow-hidden border border-slate-200 bg-white text-slate-900 shadow-sm flex flex-col min-h-[700px]">
-      {/* Top Header & Class Selector Bar */}
-      <div className="bg-white border-b border-slate-200 p-4 space-y-3 z-20">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 shadow-sm">
-              <Zap className="size-5 text-blue-600" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                  Visual Workflow Canvas
-                </h2>
-                <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                  Node View
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                Interactive node pipeline linking Classes ➔ Subjects ➔ Teachers
-              </p>
-            </div>
-          </div>
-
-          {/* Zoom Controls & Add Button */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200">
-              <button
-                onClick={() => setZoom((z) => Math.max(0.6, z - 0.1))}
-                className="p-1.5 rounded-lg hover:bg-white text-slate-600 hover:text-slate-900 transition-colors"
-                title="Zoom Out"
-              >
-                <ZoomOut className="size-4" />
-              </button>
-              <span className="px-2 text-xs font-mono text-slate-600 min-w-[45px] text-center font-medium">
-                {Math.round(zoom * 100)}%
-              </span>
-              <button
-                onClick={() => setZoom((z) => Math.min(1.4, z + 0.1))}
-                className="p-1.5 rounded-lg hover:bg-white text-slate-600 hover:text-slate-900 transition-colors"
-                title="Zoom In"
-              >
-                <ZoomIn className="size-4" />
-              </button>
-              <button
-                onClick={() => setZoom(1)}
-                className="p-1.5 rounded-lg hover:bg-white text-slate-500 hover:text-slate-900 transition-colors border-l border-slate-200 ml-1"
-                title="Reset Zoom"
-              >
-                <RotateCcw className="size-3.5" />
-              </button>
-            </div>
-
-            <Button
-              onClick={onAdd}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs py-2 px-3 flex items-center gap-1.5 shadow-sm"
-            >
-              <Plus className="size-4" />
-              New Node Mapping
-            </Button>
-          </div>
-        </div>
-
+      {/* Sleek Canvas Control & Class Selection Bar */}
+      <div className="bg-white border-b border-slate-200 p-3 flex flex-wrap items-center justify-between gap-3 z-20 shadow-xs">
         {/* CLASS TABS BAR */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin py-0.5 max-w-full">
           <button
             onClick={() => setSelectedClassId("all")}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
               selectedClassId === "all"
-                ? "bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/20"
+                ? "bg-blue-600 text-white shadow-xs ring-2 ring-blue-500/20"
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200/80 border border-slate-200"
             }`}
           >
@@ -233,7 +181,7 @@ export default function N8nMappingCanvas({
                 onClick={() => setSelectedClassId(String(cls.id))}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                   isSelected
-                    ? "bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/20"
+                    ? "bg-blue-600 text-white shadow-xs ring-2 ring-blue-500/20"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200/80 border border-slate-200"
                 }`}
               >
@@ -245,6 +193,34 @@ export default function N8nMappingCanvas({
               </button>
             );
           })}
+        </div>
+
+        {/* Zoom Controls */}
+        <div className="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200 shrink-0">
+          <button
+            onClick={() => setZoom((z) => Math.max(0.6, z - 0.1))}
+            className="p-1.5 rounded-lg hover:bg-white text-slate-600 hover:text-slate-900 transition-colors"
+            title="Zoom Out"
+          >
+            <ZoomOut className="size-4" />
+          </button>
+          <span className="px-2 text-xs font-mono text-slate-600 min-w-[45px] text-center font-medium">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            onClick={() => setZoom((z) => Math.min(1.4, z + 0.1))}
+            className="p-1.5 rounded-lg hover:bg-white text-slate-600 hover:text-slate-900 transition-colors"
+            title="Zoom In"
+          >
+            <ZoomIn className="size-4" />
+          </button>
+          <button
+            onClick={() => setZoom(1)}
+            className="p-1.5 rounded-lg hover:bg-white text-slate-500 hover:text-slate-900 transition-colors border-l border-slate-200 ml-1"
+            title="Reset Zoom"
+          >
+            <RotateCcw className="size-3.5" />
+          </button>
         </div>
       </div>
 
@@ -336,7 +312,7 @@ export default function N8nMappingCanvas({
 
                   <Button
                     size="sm"
-                    onClick={onAdd}
+                    onClick={() => onAdd(currentClass?.id)}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 flex items-center justify-center gap-1.5 shadow-sm"
                   >
                     <Plus className="size-3.5" /> Add Subject to {currentClass?.class_name}
@@ -369,7 +345,7 @@ export default function N8nMappingCanvas({
                     <BookOpen className="size-8 text-slate-400 mx-auto mb-2" />
                     <p className="text-sm font-medium text-slate-700">No Subjects Mapped Yet</p>
                     <p className="text-xs text-slate-500 mb-4">Add a subject & teacher to {currentClass?.class_name}.</p>
-                    <Button size="sm" onClick={onAdd} className="bg-purple-600 hover:bg-purple-700 text-white text-xs">
+                    <Button size="sm" onClick={() => onAdd(currentClass?.id)} className="bg-purple-600 hover:bg-purple-700 text-white text-xs">
                       <Plus className="size-3.5 mr-1" /> Add Subject Node
                     </Button>
                   </div>
