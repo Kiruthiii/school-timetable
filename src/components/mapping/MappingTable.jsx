@@ -38,7 +38,7 @@ function MappingTable({ mappings, onEdit, onDelete }) {
                       </p>
 
                       <p className="text-sm text-slate-500 md:hidden">
-                        Teacher: {mapping.teachers?.teacher_name}
+                        Teacher: {mapping.teachers?.teacher_name || "Not Assigned"}
                       </p>
 
                       <p className="text-sm text-slate-500 md:hidden">
@@ -48,11 +48,20 @@ function MappingTable({ mappings, onEdit, onDelete }) {
                   </td>
 
                   <td className="px-6 py-4 hidden md:table-cell">
-  {mapping.subjects?.subject_name}
-</td>
+                    {mapping.subjects?.subject_name}
+                  </td>
 
                   <td className="px-6 py-4 hidden md:table-cell">
-                    {mapping.teachers?.teacher_name}
+                    {mapping.teachers?.teacher_name ? (
+                      <span className="font-medium text-slate-900">
+                        {mapping.teachers.teacher_name}
+                      </span>
+                    ) : (
+                      <span className="text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200 text-xs font-semibold inline-flex items-center gap-1.5">
+                        <span className="size-1.5 rounded-full bg-amber-500"></span>
+                        Not Assigned
+                      </span>
+                    )}
                   </td>
 
                   <td className="px-6 py-4 hidden md:table-cell">
