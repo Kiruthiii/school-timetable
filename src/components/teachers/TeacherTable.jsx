@@ -30,7 +30,7 @@ function TeacherTable({ teachers, leaveRecords = [], onEdit, onDelete, onSetAvai
         <tbody className="divide-y divide-border">
           {teachers.map((teacher) => {
             const record = leaveRecords.find(
-              (r) => r.teacher_id === teacher.id
+              (r) => String(r.teacher_id) === String(teacher.id)
             );
             const status = record?.status || 'Available';
             const session = record?.session || 'Morning';
