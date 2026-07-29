@@ -46,7 +46,6 @@ function ConsolidatedTimetable() {
   const [error, setError] = useState(null);
   const [hasTimetable, setHasTimetable] = useState(false);
   const [dayAvailability, setDayAvailability] = useState([]);
-
   // View mode: 'master' | 'class' | 'teacher'
   const [viewMode, setViewMode] = useState("master");
 
