@@ -12,6 +12,7 @@ function cn(...inputs) {
 
 function ConsolidatedTimetable() {
   const [classes, setClasses] = useState([]);
+  const [slipTestCount, setSlipTestCount] = useState(0);
   
   const todayDate = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(todayDate);
@@ -93,9 +94,10 @@ function ConsolidatedTimetable() {
 
     setIsGenerating(true);
     try {
-      const result = await generateTimetable(selectedDate, 0, 8);
+      const result = await generateTimetable(selectedDate, Number(slipTestCount), 8);
       if (result.success) {
         setHasTimetable(true);
+        loadTimetable(selectedDate, selectedDate);
       } else {
         alert("Generation failed: " + (result.warnings?.join(", ") || "Unknown error"));
       }
@@ -182,8 +184,31 @@ function ConsolidatedTimetable() {
                   </Button>
                 </div>
               </div>
+              
+              <div className="flex flex-col gap-2">
+                <label htmlFor="slip-test-count" className="text-sm font-semibold text-slate-700">
+                  Slip Test Count
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    id="slip-test-count"
+                    min="0"
+                    max="5"
+                    value={slipTestCount}
+                    onChange={(e) => setSlipTestCount(e.target.value)}
+                    disabled={isLoading || isGenerating}
+                    className="px-4 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 font-medium hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all w-24 shadow-sm"
+                  />
+                </div>
+              </div>
 
-              <div className="flex items-end">
+              <div className="flex flex-col items-end gap-2">
+                {hasTimetable && currentDayEntriesCount > 0 && (
+                  <div className="text-sm font-medium text-slate-500">
+                    Total Generated Periods: <span className="text-primary font-bold">{currentDayEntriesCount}</span>
+                  </div>
+                )}
                 <Button onClick={handleGenerate} disabled={isLoading || isGenerating} className="w-full sm:w-auto">
                   {isGenerating ? (
                     <>
