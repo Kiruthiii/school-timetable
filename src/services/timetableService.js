@@ -66,15 +66,16 @@ export const isTeacherAvailable = (
   period,
   availability
 ) => {
-  const record = availability.find(
-    (a) => a.teacher_id === teacherId
-  );
+  if (!teacherId) return true;
+  if (!availability || !Array.isArray(availability)) return true;
 
+  const record = availability.find(
+    (a) => String(a.teacher_id) === String(teacherId)
+  );
 
   if (!record) {
     return true;
   }
-
 
   if (record.status === "Leave") {
     return false;
@@ -477,21 +478,10 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
           reasons.push("Already taught today");
         }
         
-        if (!isRejected) {
-          const availRecord = availability.find(a => a.teacher_id === mapping.teacher_id);
-          if (availRecord) {
-            if (availRecord.status === "Leave") {
-              isRejected = true;
-              reasons.push("Teacher Leave");
-            } else if (availRecord.status === "Half Day") {
-              if (availRecord.session === "Morning" && period <= 4) {
-                isRejected = true;
-                reasons.push("Half Day Restriction");
-              } else if (availRecord.session === "Afternoon" && period >= 5) {
-                isRejected = true;
-                reasons.push("Half Day Restriction");
-              }
-            }
+        if (!isRejected && mapping.teacher_id) {
+          if (!isTeacherAvailable(mapping.teacher_id, period, availability)) {
+            isRejected = true;
+            reasons.push("Teacher Leave / Unavailable");
           }
         }
         
@@ -517,13 +507,8 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
 
           let teacherFree = true;
           if (mapping.teacher_id) {
-            const availRecord = availability.find(a => a.teacher_id === mapping.teacher_id);
-            if (availRecord) {
-              if (availRecord.status === "Leave") teacherFree = false;
-              else if (availRecord.status === "Half Day") {
-                if (availRecord.session === "Morning" && period <= 4) teacherFree = false;
-                else if (availRecord.session === "Afternoon" && period >= 5) teacherFree = false;
-              }
+            if (!isTeacherAvailable(mapping.teacher_id, period, availability)) {
+              teacherFree = false;
             }
             if (mapping.subject_id !== ptId && teacherSchedule[period]?.[mapping.teacher_id]) {
               teacherFree = false;
@@ -541,13 +526,8 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
         for (const mapping of classAllMappings) {
           let teacherFree = true;
           if (mapping.teacher_id) {
-            const availRecord = availability.find(a => a.teacher_id === mapping.teacher_id);
-            if (availRecord) {
-              if (availRecord.status === "Leave") teacherFree = false;
-              else if (availRecord.status === "Half Day") {
-                if (availRecord.session === "Morning" && period <= 4) teacherFree = false;
-                else if (availRecord.session === "Afternoon" && period >= 5) teacherFree = false;
-              }
+            if (!isTeacherAvailable(mapping.teacher_id, period, availability)) {
+              teacherFree = false;
             }
             if (mapping.subject_id !== ptId && teacherSchedule[period]?.[mapping.teacher_id]) {
               teacherFree = false;
@@ -561,9 +541,12 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
         }
       }
 
-      // Tier 4: Ultimate Fallback - Assign any mapped subject for this class so NO PERIOD is ever left as a Free Period
+      // Tier 4: Fallback - Assign mapped subject for this class ONLY if teacher is available
       if (availableSubjects.length === 0 && classAllMappings.length > 0) {
         for (const mapping of classAllMappings) {
+          if (mapping.teacher_id && !isTeacherAvailable(mapping.teacher_id, period, availability)) {
+            continue; // Strictly skip teachers on leave / unavailable
+          }
           const rem = classRemainingPeriods.find(r => r.subject_id === mapping.subject_id);
           availableSubjects.push(rem || { ...mapping, remaining_periods: 0 });
         }
@@ -621,6 +604,20 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
         
         if (restored) {
             continue;
+        }
+
+        if (availableSubjects.length === 0) {
+          console.log(`No available teacher/subject for Period ${period}, Class ${cls.class_name} due to teacher leave/unavailability. Leaving period unallocated.`);
+          classEntries.push({
+            date,
+            class_id: cls.id,
+            period,
+            subject_id: null,
+            teacher_id: null,
+            slot_type: null,
+          });
+          period++;
+          continue;
         }
       }
 
@@ -922,4 +919,36 @@ export const getSlipTestsForWeek = async (weekStartDate) => {
 
   if (error) throw error;
   return data;
+};
+
+export const generateWeeklySchedule = async (weekDate) => {
+  const weekStart = getWeekStartDate(weekDate);
+  const days = [];
+
+  // Generate for 5 school days (Monday through Friday)
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    days.push(d.toISOString().split("T")[0]);
+  }
+
+  let totalGenerated = 0;
+  const warnings = [];
+
+  for (const dayDate of days) {
+    const res = await generateTimetable(dayDate, 0, 8);
+    if (res && res.success) {
+      totalGenerated += res.generatedCount || 0;
+    } else if (res && res.warnings) {
+      warnings.push(...res.warnings);
+    }
+  }
+
+  return {
+    success: true,
+    totalGenerated,
+    weekStartDate: weekStart,
+    daysGenerated: days,
+    warnings,
+  };
 };
