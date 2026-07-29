@@ -67,11 +67,16 @@ export const isTeacherAvailable = (
   availability
 ) => {
   if (!teacherId) return true;
-  if (!availability || !Array.isArray(availability)) return true;
+  if (!availability) return true;
 
-  const record = availability.find(
-    (a) => String(a.teacher_id) === String(teacherId)
-  );
+  let record;
+  if (availability instanceof Map) {
+    record = availability.get(String(teacherId));
+  } else if (Array.isArray(availability)) {
+    record = availability.find(
+      (a) => String(a.teacher_id) === String(teacherId)
+    );
+  }
 
   if (!record) {
     return true;
@@ -104,16 +109,18 @@ export const isTeacherAvailable = (
 
 /**
  * Loads all required data for timetable generation.
- * @param {string} date - The date for which the timetable is generated.
- * @returns {Promise<Object>} An object containing classes, mappings, progress, availability, and fixedSlots.
+ * Supports optional pre-cached data for fast multi-day generation.
  */
-const loadData = async (date) => {
-  const classes = await getClasses();
-  const mappings = await getMappings();
+const loadData = async (date, cachedData = null) => {
+  const classes = cachedData?.classes || (await getClasses());
+  const mappings = cachedData?.mappings || (await getMappings());
   const weekStartDate = getWeekStartDate(date);
   const progress = await getWeeklyProgress(weekStartDate);
-  const availability = await getTeacherAvailability(date);
-  const fixedSlots = await getFixedSlots();
+  const rawAvailability = await getTeacherAvailability(date);
+  const availability = new Map(
+    (rawAvailability || []).map((a) => [String(a.teacher_id), a])
+  );
+  const fixedSlots = cachedData?.fixedSlots || (await getFixedSlots());
   return { classes, mappings, progress, availability, fixedSlots };
 };
 
@@ -148,7 +155,7 @@ const calculateRemainingPeriods = (mappings, progress) => {
  * @param {Object} teacherSchedule - The current teacher schedule.
  * @returns {Array} List of available subjects.
  */
-const getAvailableSubjects = (
+export const getAvailableSubjects = (
   classRemainingPeriods,
   todaySubjects,
   period,
@@ -361,7 +368,7 @@ export const validateGenerationDate = (date) => {
   return { isValid: true };
 };
 
-export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllowedPeriod = 8) => {
+export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllowedPeriod = 8, cachedData = null) => {
   const dateValidation = validateGenerationDate(date);
   
   if (!dateValidation.isValid) {
@@ -381,7 +388,7 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
     await deleteTimetableForDate(date);
   }
 
-  const { classes, mappings, progress, availability, fixedSlots } = await loadData(date);
+  const { classes, mappings, progress, availability, fixedSlots } = await loadData(date, cachedData);
   const weekSlipTests = await getSlipTestsForWeek(weekStartDate);
 
   const remainingPeriods = calculateRemainingPeriods(mappings, progress);
@@ -925,6 +932,14 @@ export const generateWeeklySchedule = async (weekDate) => {
   const weekStart = getWeekStartDate(weekDate);
   const days = [];
 
+  // Pre-fetch static metadata ONCE to prevent redundant network requests across 5 days
+  const [classes, mappings, fixedSlots] = await Promise.all([
+    getClasses(),
+    getMappings(),
+    getFixedSlots(),
+  ]);
+  const cachedData = { classes, mappings, fixedSlots };
+
   // Generate for 5 school days (Monday through Friday)
   for (let i = 0; i < 5; i++) {
     const d = new Date(weekStart);
@@ -936,7 +951,7 @@ export const generateWeeklySchedule = async (weekDate) => {
   const warnings = [];
 
   for (const dayDate of days) {
-    const res = await generateTimetable(dayDate, 0, 8);
+    const res = await generateTimetable(dayDate, 0, 8, cachedData);
     if (res && res.success) {
       totalGenerated += res.generatedCount || 0;
     } else if (res && res.warnings) {
