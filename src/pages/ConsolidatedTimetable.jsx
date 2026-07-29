@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import AdminLayout from "../layouts/AdminLayout";
 import { PageHeader, Card, CardContent, Button } from "../components/ui";
 import {
@@ -227,9 +227,9 @@ function ConsolidatedTimetable() {
     }
   };
 
-  // Derive unique teachers
-  const teacherList =
-    teachers && teachers.length > 0
+  // Derive unique teachers with memoization
+  const teacherList = useMemo(() => {
+    return teachers && teachers.length > 0
       ? teachers
       : Array.from(
           new Map(
@@ -240,6 +240,7 @@ function ConsolidatedTimetable() {
         ).sort((a, b) =>
           (a.teacher_name || "").localeCompare(b.teacher_name || "")
         );
+  }, [teachers, timetable]);
 
   return (
     <AdminLayout>
