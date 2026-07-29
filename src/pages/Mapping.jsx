@@ -8,7 +8,7 @@ import {
 } from "../services/mappingService";
 import AdminLayout from "../layouts/AdminLayout";
 import { PageHeader, Card, CardContent, SearchBar, ConfirmModal } from "../components/ui";
-import { Plus, Loader2, X, LayoutGrid, Table as TableIcon, Network } from "lucide-react";
+import { Plus, Loader2, X, Table as TableIcon, Network } from "lucide-react";
 import { Button } from "../components/ui";
 import MappingModal from "../components/mapping/MappingModal";
 import N8nMappingCanvas from "../components/mapping/N8nMappingCanvas";

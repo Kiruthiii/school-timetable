@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { 
   School, 
   BookOpen, 
@@ -11,14 +11,14 @@ import {
   Trash2, 
   Plus, 
   Layers, 
-  ChevronRight,
-  Sparkles
+  ChevronRight
 } from "lucide-react";
 import { Button } from "../ui";
 
 export default function N8nMappingCanvas({
   mappings = [],
   classes = [],
+  // eslint-disable-next-line no-unused-vars
   subjects = [],
   teachers = [],
   onEdit,

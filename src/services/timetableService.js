@@ -148,7 +148,7 @@ const calculateRemainingPeriods = (mappings, progress) => {
  * @param {Object} teacherSchedule - The current teacher schedule.
  * @returns {Array} List of available subjects.
  */
-const getAvailableSubjects = (
+export const getAvailableSubjects = (
   classRemainingPeriods,
   todaySubjects,
   period,
