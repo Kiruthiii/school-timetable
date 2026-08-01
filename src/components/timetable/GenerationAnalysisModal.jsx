@@ -1,4 +1,3 @@
-import React from 'react';
 import { Card, CardContent } from "../ui";
 import { X, CheckCircle2, AlertCircle, TrendingUp, Users, BookOpen } from "lucide-react";
 

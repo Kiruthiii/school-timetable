@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import AdminLayout from "../layouts/AdminLayout";
 import { PageHeader, Card, CardContent, Button } from "../components/ui";
 import {
@@ -46,9 +46,41 @@ function ConsolidatedTimetable() {
   const [error, setError] = useState(null);
   const [hasTimetable, setHasTimetable] = useState(false);
   const [dayAvailability, setDayAvailability] = useState([]);
-
   // View mode: 'master' | 'class' | 'teacher'
   const [viewMode, setViewMode] = useState("master");
+
+  const checkExistingTimetable = async () => {
+    setIsLoading(true);
+    try {
+      const existing = await getTimetableForDate(selectedDate);
+      if (existing && existing.length > 0) {
+        setHasTimetable(true);
+      } else {
+        setHasTimetable(false);
+      }
+    } catch (err) {
+      console.error("Failed to check timetable", err);
+      setHasTimetable(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadTimetable = async (startDate, endDate) => {
+    if (!startDate || !endDate) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await getConsolidatedTimetable(startDate, endDate);
+      setTimetable(data || []);
+    } catch (err) {
+      console.error("Failed to fetch consolidated timetable", err);
+      setError("Failed to load timetable data. Please try again.");
+      setTimetable([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -92,39 +124,6 @@ function ConsolidatedTimetable() {
       setTimetable([]);
     }
   }, [hasTimetable, selectedDate]);
-
-  const checkExistingTimetable = async () => {
-    setIsLoading(true);
-    try {
-      const existing = await getTimetableForDate(selectedDate);
-      if (existing && existing.length > 0) {
-        setHasTimetable(true);
-      } else {
-        setHasTimetable(false);
-      }
-    } catch (err) {
-      console.error("Failed to check timetable", err);
-      setHasTimetable(false);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loadTimetable = async (startDate, endDate) => {
-    if (!startDate || !endDate) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await getConsolidatedTimetable(startDate, endDate);
-      setTimetable(data || []);
-    } catch (err) {
-      console.error("Failed to fetch consolidated timetable", err);
-      setError("Failed to load timetable data. Please try again.");
-      setTimetable([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleGenerate = async () => {
     if (hasTimetable) {
@@ -227,9 +226,9 @@ function ConsolidatedTimetable() {
     }
   };
 
-  // Derive unique teachers
-  const teacherList =
-    teachers && teachers.length > 0
+  // Derive unique teachers with memoization
+  const teacherList = useMemo(() => {
+    return teachers && teachers.length > 0
       ? teachers
       : Array.from(
           new Map(
@@ -240,6 +239,7 @@ function ConsolidatedTimetable() {
         ).sort((a, b) =>
           (a.teacher_name || "").localeCompare(b.teacher_name || "")
         );
+  }, [teachers, timetable]);
 
   return (
     <AdminLayout>
