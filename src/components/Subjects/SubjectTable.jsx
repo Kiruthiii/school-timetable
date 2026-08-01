@@ -78,6 +78,7 @@ function SubjectTable({ subjects, onEdit, onDelete }) {
                         variant="ghost"
                         size="icon"
                         onClick={() => onEdit(subject)}
+                        aria-label={"Edit " + subject.subject_name}
                       >
                         <Edit className="size-4" />
                       </Button>
@@ -87,6 +88,7 @@ function SubjectTable({ subjects, onEdit, onDelete }) {
                         size="icon"
                         className="text-danger hover:bg-danger-light"
                         onClick={() => onDelete(subject.id)}
+                        aria-label={"Delete " + subject.subject_name}
                       >
                         <Trash2 className="size-4" />
                       </Button>

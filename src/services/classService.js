@@ -18,17 +18,25 @@ export async function getClasses() {
 }
 
 export async function addClass(classData) {
+  const data = { ...classData };
+  if (data.class_teacher_id === "") {
+    data.class_teacher_id = null;
+  }
   const { error } = await supabase
     .from("classes")
-    .insert([classData]);
+    .insert([data]);
 
   if (error) throw error;
 }
 
 export async function updateClass(id, classData) {
+  const data = { ...classData };
+  if (data.class_teacher_id === "") {
+    data.class_teacher_id = null;
+  }
   const { error } = await supabase
     .from("classes")
-    .update(classData)
+    .update(data)
     .eq("id", id);
 
   if (error) throw error;

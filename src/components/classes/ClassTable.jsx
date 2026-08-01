@@ -58,6 +58,7 @@ function ClassTable({ classes, onEdit, onDelete }) {
                         variant="ghost"
                         size="icon"
                         onClick={() => onEdit(cls)}
+                        aria-label={"Edit " + cls.class_name}
                       >
                         <Edit className="size-4" />
                       </Button>
@@ -67,6 +68,7 @@ function ClassTable({ classes, onEdit, onDelete }) {
                         size="icon"
                         className="text-danger hover:bg-danger-light"
                         onClick={() => onDelete(cls.id)}
+                        aria-label={"Delete " + cls.class_name}
                       >
                         <Trash2 className="size-4" />
                       </Button>
