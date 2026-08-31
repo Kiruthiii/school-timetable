@@ -1,64 +1,53 @@
-/* global PT_SUBJECT_ID */
 import { supabase } from "./supabase.js";
+import { getOrCreateWorkspaceId } from "./workspaceService.js";
+import { getClasses as fetchClasses } from "./classService.js";
+import { getMappings as fetchMappings } from "./mappingService.js";
+import { getFixedSlots as fetchFixedSlots } from "./fixedSlotService.js";
+import { getTeacherAvailabilityByDate } from "./teacherAvailabilityService.js";
+
+export const isPtSubject = (subject) => {
+  if (!subject) return false;
+  const name = (subject.subjects?.subject_name || subject.subject_name || "").toLowerCase();
+  return name.includes("pt") || name.includes("physical education") || name.includes("sports");
+};
+
 export const getMappings = async () => {
-  const { data, error } = await supabase
-    .from("class_subject_teacher")
-    .select(`
-      *,
-      subjects (
-        priority,
-        subject_name
-      ),
-      teachers (
-        teacher_name
-      )
-    `);
-
-  if (error) throw error;
-
-  return data;
+  return await fetchMappings();
 };
+
 export const getClasses = async () => {
-  const { data, error } = await supabase
-    .from("classes")
-    .select("*");
-
-  if (error) throw error;
-
-  return data;
+  return await fetchClasses();
 };
+
+export const getFixedSlots = async () => {
+  return await fetchFixedSlots();
+};
+
 export const getTimetable = async () => {
   const { data, error } = await supabase
     .from("timetable")
     .select("*");
-
   if (error) throw error;
-
   return data;
 };
+
 export const clearTimetable = async () => {
   const { error } = await supabase
     .from("timetable")
     .delete()
     .neq("id", 0);
-
   if (error) throw error;
 };
+
 export const saveTimetable = async (entries) => {
+  const workspaceId = await getOrCreateWorkspaceId();
+  const entriesWithWorkspace = entries.map(entry => 
+    workspaceId ? { ...entry, workspace_id: workspaceId } : entry
+  );
   const { error } = await supabase
     .from("timetable")
-    .insert(entries);
-
+    .insert(entriesWithWorkspace);
   if (error) throw error;
-};
-export const getFixedSlots = async () => {
-  const { data, error } = await supabase
-    .from("fixed_slots")
-    .select("*");
-
-  if (error) throw error;
-
-  return data;
 };
 
 export const isTeacherAvailable = (
@@ -162,15 +151,12 @@ export const getAvailableSubjects = (
   availability,
   teacherSchedule
 ) => {
-  // Check if PT_SUBJECT_ID is defined (avoids ReferenceError if missing globally)
-  const ptId = typeof PT_SUBJECT_ID !== "undefined" ? PT_SUBJECT_ID : undefined;
-
   return classRemainingPeriods.filter(
     (subject) =>
       subject.remaining_periods > 0 &&
       !todaySubjects.includes(subject.subject_id) &&
       isTeacherAvailable(subject.teacher_id, period, availability) &&
-      (subject.subject_id === ptId || !teacherSchedule[period]?.[subject.teacher_id])
+      (isPtSubject(subject) || !teacherSchedule[period]?.[subject.teacher_id])
   );
 };
 
@@ -179,7 +165,6 @@ export const getAvailableSubjects = (
  */
 const calculateFuturePlacementCount = (candidate, cls, currentPeriod, teacherSchedule, teacherAvailability, fixedSlots, currentDay) => {
   let count = 0;
-  const ptId = typeof PT_SUBJECT_ID !== "undefined" ? PT_SUBJECT_ID : undefined;
 
   for (let p = currentPeriod + 1; p <= 8; p++) {
     const fixedSlot = fixedSlots.find(
@@ -189,7 +174,7 @@ const calculateFuturePlacementCount = (candidate, cls, currentPeriod, teacherSch
 
     if (!isTeacherAvailable(candidate.teacher_id, p, teacherAvailability)) continue;
 
-    if (candidate.subject_id !== ptId && teacherSchedule[p]?.[candidate.teacher_id]) continue;
+    if (!isPtSubject(candidate) && teacherSchedule[p]?.[candidate.teacher_id]) continue;
 
     count++;
   }
@@ -285,9 +270,7 @@ const allocateSubject = (selectedSubject, todaySubjects) => {
  * @param {Object} selectedSubject - The allocated subject.
  */
 const updateTeacherSchedule = (teacherSchedule, period, selectedSubject) => {
-  const ptId = typeof PT_SUBJECT_ID !== "undefined" ? PT_SUBJECT_ID : undefined;
-
-  if (selectedSubject && selectedSubject.subject_id !== ptId && selectedSubject.teacher_id) {
+  if (selectedSubject && !isPtSubject(selectedSubject) && selectedSubject.teacher_id) {
     if (!teacherSchedule[period]) {
       teacherSchedule[period] = {};
     }
@@ -467,8 +450,6 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
       const classAllMappings = mappings.filter(m => m.class_id === cls.id);
       
       const availableSubjects = [];
-      
-      const ptId = typeof PT_SUBJECT_ID !== "undefined" ? PT_SUBJECT_ID : undefined;
 
       for (const mapping of classAllMappings) {
         let isRejected = false;
@@ -492,7 +473,7 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
           }
         }
         
-        if (!isRejected && mapping.subject_id !== ptId && teacherSchedule[period]?.[mapping.teacher_id]) {
+        if (!isRejected && !isPtSubject(mapping) && teacherSchedule[period]?.[mapping.teacher_id]) {
           isRejected = true;
           reasons.push("Teacher already occupied");
         }
@@ -517,7 +498,7 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
             if (!isTeacherAvailable(mapping.teacher_id, period, availability)) {
               teacherFree = false;
             }
-            if (mapping.subject_id !== ptId && teacherSchedule[period]?.[mapping.teacher_id]) {
+            if (!isPtSubject(mapping) && teacherSchedule[period]?.[mapping.teacher_id]) {
               teacherFree = false;
             }
           }
@@ -536,7 +517,7 @@ export const generateTimetable = async (date, slipTestPeriods = 0, slipTestAllow
             if (!isTeacherAvailable(mapping.teacher_id, period, availability)) {
               teacherFree = false;
             }
-            if (mapping.subject_id !== ptId && teacherSchedule[period]?.[mapping.teacher_id]) {
+            if (!isPtSubject(mapping) && teacherSchedule[period]?.[mapping.teacher_id]) {
               teacherFree = false;
             }
           }
@@ -698,29 +679,19 @@ export const getWeeklyProgress = async (weekStartDate) => {
     .eq("week_start_date", weekStartDate);
 
   if (error) throw error;
-
   return data;
 };
+
 export const getWeekStartDate = (date) => {
   const d = new Date(date);
-
   const day = d.getDay();
-
   const diff = day === 0 ? -6 : 1 - day;
-
   d.setDate(d.getDate() + diff);
-
   return d.toISOString().split("T")[0];
 };
+
 export const getTeacherAvailability = async (date) => {
-  const { data, error } = await supabase
-    .from("teacher_availability")
-    .select("*")
-    .eq("date", date);
-
-  if (error) throw error;
-
-  return data;
+  return await getTeacherAvailabilityByDate(date);
 };
 
 export const initializeWeeklyProgress = async (weekStartDate) => {
@@ -737,14 +708,19 @@ export const initializeWeeklyProgress = async (weekStartDate) => {
       return;
     }
 
-    const progressEntries = mappings.map((mapping) => ({
-      week_start_date: weekStartDate,
-      class_id: mapping.class_id,
-      subject_id: mapping.subject_id,
-      required_periods: mapping.weekly_periods,
-      completed_periods: 0,
-      carry_forward_periods: 0,
-    }));
+    const workspaceId = await getOrCreateWorkspaceId();
+    const progressEntries = mappings.map((mapping) => {
+      const entry = {
+        week_start_date: weekStartDate,
+        class_id: mapping.class_id,
+        subject_id: mapping.subject_id,
+        required_periods: mapping.weekly_periods,
+        completed_periods: 0,
+        carry_forward_periods: 0,
+      };
+      if (workspaceId) entry.workspace_id = workspaceId;
+      return entry;
+    });
 
     const { error } = await supabase
       .from("weekly_progress")
@@ -867,11 +843,7 @@ export const saveGeneratedTimetable = async (entries) => {
   const validEntries = entries.filter(e => e.date && e.class_id && e.period);
   if (validEntries.length === 0) return 0;
 
-  const { error } = await supabase
-    .from("timetable")
-    .insert(validEntries);
-
-  if (error) throw error;
+  await saveTimetable(validEntries);
   return validEntries.length;
 };
 
@@ -880,19 +852,17 @@ export const getTimetableByDateAndClass = async (
   classId
 ) => {
   const { data, error } = await supabase
-  .from("timetable")
-  .select(`
-    *,
-    subjects(*),
-    teachers(*)
-  `)
-  .eq("date", date)
-  .eq("class_id", classId);
+    .from("timetable")
+    .select(`
+      *,
+      subjects(*),
+      teachers(*)
+    `)
+    .eq("date", date)
+    .eq("class_id", classId);
 
-if (error) throw error;
-
-return data;
-
+  if (error) throw error;
+  return data;
 };
 
 export const getConsolidatedTimetable = async (startDate, endDate) => {
@@ -908,7 +878,6 @@ export const getConsolidatedTimetable = async (startDate, endDate) => {
     .lte("date", endDate);
 
   if (error) throw error;
-  
   return data;
 };
 

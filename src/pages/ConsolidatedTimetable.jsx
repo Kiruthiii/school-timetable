@@ -115,6 +115,7 @@ function ConsolidatedTimetable() {
     };
     fetchAvailability();
     checkExistingTimetable();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
   useEffect(() => {

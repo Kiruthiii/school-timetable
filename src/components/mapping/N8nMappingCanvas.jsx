@@ -133,6 +133,7 @@ export default function N8nMappingCanvas({
         canvasEl.removeEventListener("scroll", updateLines);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMappings, zoom, activeNode, selectedClassId]);
 
   // Highlight check

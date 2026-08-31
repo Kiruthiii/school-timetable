@@ -15,7 +15,7 @@ setup('authenticate', async ({ page }) => {
         expires_in: 3600,
         refresh_token: anonKey,
         user: {
-          id: 'd04085b3-d0db-4d32-850d-13a863f890ff',
+          id: '9c9b404e-da90-457c-879a-af8a52f21059',
           aud: 'authenticated',
           role: 'authenticated',
           email: 'schooladmin@gmail.com',

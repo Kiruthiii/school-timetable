@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getOrCreateWorkspaceId } from "./workspaceService";
 
 export async function getTeacherAvailabilityByDate(date) {
   const { data, error } = await supabase
@@ -20,7 +21,6 @@ export async function setTeacherAvailability(teacherId, date, status, session = 
 
     if (error) throw error;
   } else {
-    // Fetch existing record to get its ID, because upsert by unique constraint sometimes requires specific setup
     const { data: existing } = await supabase
       .from("teacher_availability")
       .select("id")
@@ -35,9 +35,13 @@ export async function setTeacherAvailability(teacherId, date, status, session = 
         .eq("id", existing.id);
       if (error) throw error;
     } else {
+      const workspaceId = await getOrCreateWorkspaceId();
+      const payload = { teacher_id: teacherId, date, status, session };
+      if (workspaceId) payload.workspace_id = workspaceId;
+
       const { error } = await supabase
         .from("teacher_availability")
-        .insert([{ teacher_id: teacherId, date, status, session }]);
+        .insert([payload]);
       if (error) throw error;
     }
   }

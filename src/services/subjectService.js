@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getOrCreateWorkspaceId } from "./workspaceService";
 
 export async function getSubjects() {
   const { data, error } = await supabase
@@ -7,14 +8,16 @@ export async function getSubjects() {
     .order("subject_name", { ascending: true });
 
   if (error) throw error;
-
   return data;
 }
 
 export async function addSubject(subject) {
+  const workspaceId = await getOrCreateWorkspaceId();
+  const payload = workspaceId ? { ...subject, workspace_id: workspaceId } : subject;
+
   const { error } = await supabase
     .from("subjects")
-    .insert([subject]);
+    .insert([payload]);
 
   if (error) throw error;
 }
@@ -29,7 +32,6 @@ export async function updateSubject(id, subject) {
 }
 
 export async function deleteSubject(id) {
-  // Clean up all dependent records across tables to prevent FK constraint errors
   await supabase.from("class_subject_teacher").delete().eq("subject_id", id);
   await supabase.from("fixed_slots").delete().eq("subject_id", id);
   await supabase.from("timetable").delete().eq("subject_id", id);
