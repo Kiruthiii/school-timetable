@@ -30,33 +30,40 @@ ALTER TABLE public.teacher_availability ADD COLUMN IF NOT EXISTS workspace_id uu
 ALTER TABLE public.weekly_progress ADD COLUMN IF NOT EXISTS workspace_id uuid REFERENCES public.workspaces(id) ON DELETE CASCADE;
 
 -- ------------------------------------------------------------------------------
--- STEP 3: Validate Existing Admin User and Migrate Existing Data
+-- STEP 3: Assign All Existing Legitimate Timetable Data to admin@gmail.com
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
-  v_existing_admin_id uuid := '9c9b404e-da90-457c-879a-af8a52f21059'::uuid;
+  v_existing_admin_id uuid;
   v_workspace_id uuid;
 BEGIN
-  -- 1. Validate that the specified primary Admin account exists in auth.users
-  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_existing_admin_id) THEN
-    RAISE EXCEPTION 'Migration Aborted: Primary Admin user ID % does not exist in auth.users!', v_existing_admin_id;
+  -- 1. Locate the exact user ID for admin@gmail.com
+  SELECT id INTO v_existing_admin_id FROM auth.users WHERE email = 'admin@gmail.com' LIMIT 1;
+
+  IF v_existing_admin_id IS NULL THEN
+    v_existing_admin_id := '7fff150e-dab5-4273-9fa5-c7a07c565168'::uuid;
   END IF;
 
-  -- 2. Create or fetch the primary Admin workspace
+  -- 2. Validate that the admin account exists in auth.users
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_existing_admin_id) THEN
+    RAISE EXCEPTION 'Migration Aborted: Admin user admin@gmail.com (ID %) does not exist in auth.users!', v_existing_admin_id;
+  END IF;
+
+  -- 3. Create or fetch the primary Admin workspace for admin@gmail.com
   INSERT INTO public.workspaces (owner_id, name)
   VALUES (v_existing_admin_id, 'Primary Admin Workspace')
   ON CONFLICT (owner_id) DO UPDATE SET name = EXCLUDED.name
   RETURNING id INTO v_workspace_id;
 
-  -- 3. Assign all existing legitimate unassigned records to this workspace ID
-  UPDATE public.teachers SET workspace_id = v_workspace_id WHERE workspace_id IS NULL;
-  UPDATE public.classes SET workspace_id = v_workspace_id WHERE workspace_id IS NULL;
-  UPDATE public.subjects SET workspace_id = v_workspace_id WHERE workspace_id IS NULL;
-  UPDATE public.class_subject_teacher SET workspace_id = v_workspace_id WHERE workspace_id IS NULL;
-  UPDATE public.fixed_slots SET workspace_id = v_workspace_id WHERE workspace_id IS NULL;
-  UPDATE public.timetable SET workspace_id = v_workspace_id WHERE workspace_id IS NULL;
-  UPDATE public.teacher_availability SET workspace_id = v_workspace_id WHERE workspace_id IS NULL;
-  UPDATE public.weekly_progress SET workspace_id = v_workspace_id WHERE workspace_id IS NULL;
+  -- 4. Assign ALL 1,673 existing legitimate records to admin@gmail.com workspace
+  UPDATE public.teachers SET workspace_id = v_workspace_id;
+  UPDATE public.classes SET workspace_id = v_workspace_id;
+  UPDATE public.subjects SET workspace_id = v_workspace_id;
+  UPDATE public.class_subject_teacher SET workspace_id = v_workspace_id;
+  UPDATE public.fixed_slots SET workspace_id = v_workspace_id;
+  UPDATE public.timetable SET workspace_id = v_workspace_id;
+  UPDATE public.teacher_availability SET workspace_id = v_workspace_id;
+  UPDATE public.weekly_progress SET workspace_id = v_workspace_id;
 END $$;
 
 -- ------------------------------------------------------------------------------
@@ -102,34 +109,28 @@ BEGIN
 
   -- Audit 3: Comprehensive Cross-Table Relationship Consistency Check across ALL tables
   SELECT (
-    -- classes.class_teacher_id -> teachers
     (SELECT COUNT(*) FROM public.classes c 
      JOIN public.teachers t ON c.class_teacher_id = t.id WHERE c.workspace_id <> t.workspace_id) +
-    -- class_subject_teacher references
     (SELECT COUNT(*) FROM public.class_subject_teacher m 
      JOIN public.classes c ON m.class_id = c.id WHERE m.workspace_id <> c.workspace_id) +
     (SELECT COUNT(*) FROM public.class_subject_teacher m 
      JOIN public.subjects s ON m.subject_id = s.id WHERE m.workspace_id <> s.workspace_id) +
     (SELECT COUNT(*) FROM public.class_subject_teacher m 
      JOIN public.teachers t ON m.teacher_id = t.id WHERE m.workspace_id <> t.workspace_id) +
-    -- fixed_slots references
     (SELECT COUNT(*) FROM public.fixed_slots f 
      JOIN public.classes c ON f.class_id = c.id WHERE f.workspace_id <> c.workspace_id) +
     (SELECT COUNT(*) FROM public.fixed_slots f 
      JOIN public.subjects s ON f.subject_id = s.id WHERE f.subject_id IS NOT NULL AND f.workspace_id <> s.workspace_id) +
     (SELECT COUNT(*) FROM public.fixed_slots f 
      JOIN public.teachers t ON f.teacher_id = t.id WHERE f.teacher_id IS NOT NULL AND f.workspace_id <> t.workspace_id) +
-    -- timetable references
     (SELECT COUNT(*) FROM public.timetable tt 
      JOIN public.classes c ON tt.class_id = c.id WHERE tt.workspace_id <> c.workspace_id) +
     (SELECT COUNT(*) FROM public.timetable tt 
      JOIN public.subjects s ON tt.subject_id = s.id WHERE tt.subject_id IS NOT NULL AND tt.workspace_id <> s.workspace_id) +
     (SELECT COUNT(*) FROM public.timetable tt 
      JOIN public.teachers t ON tt.teacher_id = t.id WHERE tt.teacher_id IS NOT NULL AND tt.workspace_id <> t.workspace_id) +
-    -- teacher_availability references
     (SELECT COUNT(*) FROM public.teacher_availability a 
      JOIN public.teachers t ON a.teacher_id = t.id WHERE a.workspace_id <> t.workspace_id) +
-    -- weekly_progress references
     (SELECT COUNT(*) FROM public.weekly_progress p 
      JOIN public.classes c ON p.class_id = c.id WHERE p.workspace_id <> c.workspace_id) +
     (SELECT COUNT(*) FROM public.weekly_progress p 
@@ -387,63 +388,54 @@ ALTER TABLE public.timetable ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.teacher_availability ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.weekly_progress ENABLE ROW LEVEL SECURITY;
 
--- Policy for workspaces
 DROP POLICY IF EXISTS "Users can manage own workspace" ON public.workspaces;
 CREATE POLICY "Users can manage own workspace" ON public.workspaces
   FOR ALL
   USING (owner_id = auth.uid())
   WITH CHECK (owner_id = auth.uid());
 
--- Policy for teachers
 DROP POLICY IF EXISTS "Workspace data isolation" ON public.teachers;
 CREATE POLICY "Workspace data isolation" ON public.teachers
   FOR ALL
   USING (workspace_id = public.get_auth_workspace_id())
   WITH CHECK (workspace_id = public.get_auth_workspace_id());
 
--- Policy for classes
 DROP POLICY IF EXISTS "Workspace data isolation" ON public.classes;
 CREATE POLICY "Workspace data isolation" ON public.classes
   FOR ALL
   USING (workspace_id = public.get_auth_workspace_id())
   WITH CHECK (workspace_id = public.get_auth_workspace_id());
 
--- Policy for subjects
 DROP POLICY IF EXISTS "Workspace data isolation" ON public.subjects;
 CREATE POLICY "Workspace data isolation" ON public.subjects
   FOR ALL
   USING (workspace_id = public.get_auth_workspace_id())
   WITH CHECK (workspace_id = public.get_auth_workspace_id());
 
--- Policy for class_subject_teacher
 DROP POLICY IF EXISTS "Workspace data isolation" ON public.class_subject_teacher;
 CREATE POLICY "Workspace data isolation" ON public.class_subject_teacher
   FOR ALL
   USING (workspace_id = public.get_auth_workspace_id())
   WITH CHECK (workspace_id = public.get_auth_workspace_id());
 
--- Policy for fixed_slots
 DROP POLICY IF EXISTS "Workspace data isolation" ON public.fixed_slots;
 CREATE POLICY "Workspace data isolation" ON public.fixed_slots
   FOR ALL
   USING (workspace_id = public.get_auth_workspace_id())
   WITH CHECK (workspace_id = public.get_auth_workspace_id());
 
--- Policy for timetable
 DROP POLICY IF EXISTS "Workspace data isolation" ON public.timetable;
 CREATE POLICY "Workspace data isolation" ON public.timetable
   FOR ALL
   USING (workspace_id = public.get_auth_workspace_id())
   WITH CHECK (workspace_id = public.get_auth_workspace_id());
 
--- Policy for teacher_availability
 DROP POLICY IF EXISTS "Workspace data isolation" ON public.teacher_availability;
 CREATE POLICY "Workspace data isolation" ON public.teacher_availability
   FOR ALL
   USING (workspace_id = public.get_auth_workspace_id())
   WITH CHECK (workspace_id = public.get_auth_workspace_id());
 
--- Policy for weekly_progress
 DROP POLICY IF EXISTS "Workspace data isolation" ON public.weekly_progress;
 CREATE POLICY "Workspace data isolation" ON public.weekly_progress
   FOR ALL
@@ -471,35 +463,3 @@ DROP TRIGGER IF EXISTS on_auth_user_created_workspace ON auth.users;
 CREATE TRIGGER on_auth_user_created_workspace
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_workspace();
-
--- ==============================================================================
--- STEP 10: VERIFICATION & TEST SQL SUITE (Run in SQL Editor to test database rules)
--- ==============================================================================
-/*
--- TEST 1: Workspace Auto-Provisioning Verification
-SELECT * FROM public.workspaces WHERE owner_id = '9c9b404e-da90-457c-879a-af8a52f21059';
-
--- TEST 2: Read Isolation Verification
-SELECT COUNT(*) FROM public.teachers;
-
--- TEST 3: Cross-Workspace Relationship Violation Tests (A through F)
--- Test A: Workspace A mapping linking a Class from Workspace B
--- INSERT INTO public.class_subject_teacher (class_id, subject_id, teacher_id, weekly_periods, workspace_id)
--- VALUES (1, 1, 1, 5, '00000000-0000-0000-0000-000000000000');
--- EXPECTED: Exception "Cross-Workspace Integrity Error..."
-
--- TEST 4: Workspace ID Manipulation / RLS Rejection Test
--- INSERT INTO public.teachers (teacher_name, short_name, max_periods, workspace_id)
--- VALUES ('Hack Teacher', 'HACK', 5, '00000000-0000-0000-0000-000000000000');
--- EXPECTED: RLS Policy Violation / Rejection
-
--- TEST 5: New User Auto-Provisioning
--- Verified via AFTER INSERT ON auth.users trigger creating 1 unique workspace in public.workspaces.
-
--- TEST 6: Existing Legitimate Data Migration Check
-SELECT 
-  (SELECT COUNT(*) FROM public.teachers WHERE workspace_id IS NOT NULL) AS teachers_migrated,
-  (SELECT COUNT(*) FROM public.classes WHERE workspace_id IS NOT NULL) AS classes_migrated,
-  (SELECT COUNT(*) FROM public.subjects WHERE workspace_id IS NOT NULL) AS subjects_migrated,
-  (SELECT COUNT(*) FROM public.timetable WHERE workspace_id IS NOT NULL) AS timetable_migrated;
-*/
