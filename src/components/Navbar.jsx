@@ -1,17 +1,21 @@
-import { Menu, LogOut } from "lucide-react";
+import { Menu, LogOut, User } from "lucide-react";
 import { Button } from "./ui";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../services/supabase";
+import { useAuth } from "../context/AuthContext";
+import toast from "react-hot-toast";
 
 function Navbar({ onMenuClick }) {
   const navigate = useNavigate();
+  const { adminName, signOut } = useAuth();
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
+      await signOut();
+      toast.success("Logged out successfully");
       navigate("/login");
     } catch (error) {
       console.error("Error logging out:", error);
+      toast.error("Failed to log out");
     }
   };
 
@@ -31,7 +35,16 @@ function Navbar({ onMenuClick }) {
         </h1>
       </div>
       
-      <div className="flex items-center gap-1 sm:gap-2">
+      <div className="flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200">
+          <div className="size-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-semibold text-xs">
+            <User className="size-4" />
+          </div>
+          <span className="text-sm font-semibold text-text-primary">
+            {adminName}
+          </span>
+        </div>
+
         <Button variant="ghost" onClick={handleLogout} className="gap-2 text-danger hover:bg-danger-light hover:text-danger border border-transparent hover:border-danger/20 transition-all duration-200">
           <LogOut className="size-4" aria-hidden="true" />
           <span className="hidden sm:block font-medium">Logout</span>

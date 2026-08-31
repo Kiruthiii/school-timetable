@@ -57,9 +57,9 @@ test.describe('TS_MASTER_DATA: Master Data Management', () => {
     }
 
     // Create a new class
-    await page.click('button:has-text("Add Class")');
+    await page.locator('div.space-y-6 button:has-text("Add Class")').first().click();
     await page.fill('input[name="class_name"]', className);
-    await page.click('button[type="submit"]:has-text("Add Class")');
+    await page.click('form button[type="submit"]');
     await expect(page.locator('[role="status"]').first()).toContainText(/success/i);
     await expect(page.locator('table')).toContainText(className);
 

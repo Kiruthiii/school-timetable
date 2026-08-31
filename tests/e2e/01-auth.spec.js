@@ -90,7 +90,7 @@ test.describe('TS_AUTH: Authentication', () => {
     await page.goto('/consolidated-timetable');
 
     // Verify redirection back to the login page
-    await expect(page).toHaveURL(/.*\//);
+    await expect(page).toHaveURL(/.*\/login/);
     await expect(page.locator('button:has-text("Log In")')).toBeVisible();
   });
 });

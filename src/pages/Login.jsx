@@ -1,9 +1,14 @@
-import { supabase } from "../services/supabase";
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button } from "../components/ui";
 import { School, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import toast from "react-hot-toast";
 
 function Login() {
+  const { signIn } = useAuth();
+  const navigate = useNavigate();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -14,26 +19,23 @@ function Login() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    try {
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
 
-  if (error) {
-    setError(error.message);
-  } else {
-    window.location.href = "/dashboard";
-  }
-} catch (err) {
-  console.error(err);
-  setError("Something went wrong");
-} finally {
-  setLoading(false);
-}
-    
-    // Simulate login
-    
+    try {
+      await signIn(email.trim(), password);
+      toast.success("Logged in successfully");
+      navigate("/dashboard");
+    } catch (err) {
+      console.error(err);
+      if (err.message?.toLowerCase().includes("invalid login credentials")) {
+        setError("Invalid email or password.");
+      } else if (err.message?.toLowerCase().includes("email not confirmed")) {
+        setError("Please verify your email address before logging in.");
+      } else {
+        setError(err.message || "Failed to sign in. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -84,9 +86,14 @@ function Login() {
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-text-primary mb-2">
-                  Password
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="password" className="block text-sm font-medium text-text-primary">
+                    Password
+                  </label>
+                  <Link to="/forgot-password" className="text-xs text-primary hover:underline font-medium">
+                    Forgot Password?
+                  </Link>
+                </div>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted size-5" aria-hidden="true" />
                   <input
@@ -111,11 +118,18 @@ function Login() {
               </div>
 
               <Button type="submit" fullWidth loading={loading} className="py-3">
-                Log In
+                {loading ? "Signing In..." : "Log In"}
               </Button>
             </form>
 
-          
+            <div className="text-center pt-2">
+              <p className="text-sm text-text-secondary">
+                Don't have an account?{" "}
+                <Link to="/signup" className="text-primary font-medium hover:underline">
+                  Sign Up
+                </Link>
+              </p>
+            </div>
           </CardContent>
         </Card>
 

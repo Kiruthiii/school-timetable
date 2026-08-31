@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getOrCreateWorkspaceId } from "./workspaceService";
 
 export async function getMappings() {
   const { data, error } = await supabase
@@ -18,14 +19,16 @@ export async function getMappings() {
     .order("id");
 
   if (error) throw error;
-
   return data;
 }
 
 export async function addMapping(mapping) {
+  const workspaceId = await getOrCreateWorkspaceId();
+  const payload = workspaceId ? { ...mapping, workspace_id: workspaceId } : mapping;
+
   const { error } = await supabase
     .from("class_subject_teacher")
-    .insert([mapping]);
+    .insert([payload]);
 
   if (error) throw error;
 }

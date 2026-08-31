@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getOrCreateWorkspaceId } from "./workspaceService";
 
 export async function getFixedSlots() {
   const { data, error } = await supabase
@@ -16,7 +17,6 @@ export async function getFixedSlots() {
 }
 
 export async function addFixedSlot(slotData) {
-  // Check for existing slot for same class, day, period
   const { data: existing, error: existingError } = await supabase
     .from("fixed_slots")
     .select("id")
@@ -30,15 +30,17 @@ export async function addFixedSlot(slotData) {
     throw new Error("This class already has a fixed slot for the selected day and period.");
   }
 
+  const workspaceId = await getOrCreateWorkspaceId();
+  const payload = workspaceId ? { ...slotData, workspace_id: workspaceId } : slotData;
+
   const { error } = await supabase
     .from("fixed_slots")
-    .insert([slotData]);
+    .insert([payload]);
 
   if (error) throw error;
 }
 
 export async function updateFixedSlot(id, slotData) {
-  // Check for existing slot for same class, day, period, excluding current id
   const { data: existing, error: existingError } = await supabase
     .from("fixed_slots")
     .select("id")
